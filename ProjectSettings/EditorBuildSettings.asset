@@ -1,0 +1,17 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1045 &1
+EditorBuildSettings:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Scenes:
+  - enabled: 1
+    path: Assets/Scenes/DinoImpact.unity
+    guid: 53e2944b2ce57d623a23b085c5f16d3c
+  - enabled: 1
+    path: Assets/Scenes/SurfImpact.unity
+    guid: c277e2aaf767c1480a1531ba77667d0a
+  - enabled: 1
+    path: Assets/Scenes/SampleScene.unity
+    guid: 2cda990e2423bbf4892e6590ba056729
+  m_configObjects: {}
