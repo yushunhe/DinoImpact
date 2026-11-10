@@ -274,6 +274,20 @@ function Game.debugClearTrack()
     T.nextEnemy = 1e9
 end
 
+-- Re-arm the spawn director after debugClearTrack, so a test run can watch
+-- natural rows appear (row placement tests, long-run sims).
+-- what = "all" (default) | "eggs" | "obstacles" | "enemies"
+function Game.debugEnableSpawning(what)
+    what = what or "all"
+    if what == "all" or what == "eggs" then T.nextEgg = P.y + 4.5 end
+    if what == "all" or what == "obstacles" then
+        T.nextObstacle = P.y + Config.spawn.safeStart
+    end
+    if what == "all" or what == "enemies" then
+        T.nextEnemy = P.y + Config.spawn.safeStart + 14
+    end
+end
+
 Game.debugGetTrack = function() return T end
 Game.debugGetDinos = function() return Dino end
 Game.debugGetMount = function() return M end

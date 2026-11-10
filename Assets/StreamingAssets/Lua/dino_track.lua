@@ -79,18 +79,21 @@ local function eggNear(x, y)
 end
 
 -- 线形蛋串（沿用原型）或 多边形团（3-4-3，1.2.4 (1)）
+-- 锚在玩家的预测到达点上，跟着朝向走，两边跑也能遇到蛋
 local function spawnEggRow(P, y)
+    local cx = P:futureX(y)
     if U.chance(.35) then
+        cx = cx + (math.random() * 2 - 1) * 1.5
         local rows = { { n = 3, dy = 1.2 }, { n = 4, dy = 0 }, { n = 3, dy = -1.2 } }
         for r = 1, #rows do
             local row = rows[r]
             for i = 1, row.n do
-                T.addEgg(P.x + (i - 1) * 1.15 - (row.n - 1) * .575, y + row.dy)
+                T.addEgg(cx + (i - 1) * 1.15 - (row.n - 1) * .575, y + row.dy)
             end
         end
     else
         local count = math.random(3, 5)
-        local x0 = P.x + (math.random() * 2 - 1) * 5.4
+        local x0 = cx + (math.random() * 2 - 1) * 3.8
         local start = x0 - (count - 1) * 1.15 * .5
         for i = 1, count do
             T.addEgg(start + (i - 1) * 1.15, y)
@@ -99,16 +102,17 @@ local function spawnEggRow(P, y)
 end
 
 local function spawnObstacleRow(P, y)
+    local cx = P:futureX(y)
     -- 睡觉的恐龙：换乘点（也当阻拦物处理）
     if U.chance(S.sleepChance) then
         local key = U.choice(Data.mountOrder)
-        T.addSleepDino(key, P.x + (math.random() * 2 - 1) * 4, y)
+        T.addSleepDino(key, cx + (math.random() * 2 - 1) * 3.5, y)
         return
     end
     -- 道具果实：单个出现、周围障碍偏多（1.2.4 (2)(3)）
     if U.chance(S.fruitChance) then
         local fruitKey = U.chance(.55) and "fruit_energy" or "fruit_life"
-        local fx0 = P.x + (math.random() * 2 - 1) * 4
+        local fx0 = cx + (math.random() * 2 - 1) * 3.5
         addItem(fruitKey, fx0, y, "fruit")
         for i = 1, 3 do
             local ang = (i / 3) * U.tau + math.random()
@@ -119,7 +123,7 @@ local function spawnObstacleRow(P, y)
     end
     local count = U.chance(.32) and 2 or 1
     for i = 1, count do
-        local x = P.x + (math.random() * 2 - 1) * 6.0
+        local x = cx + (math.random() * 2 - 1) * 6.5
         if not eggNear(x, y) then
             addObstacle(U.pick(Data.obstacleWeights), x, y + (i - 1) * .9)
         end

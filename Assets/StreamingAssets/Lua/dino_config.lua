@@ -103,6 +103,7 @@ C.spawn = {
     fruitChance = .14,     -- an egg row becomes a guarded fruit instead
     sleepChance = .10,     -- an obstacle row becomes a sleeping mount dinosaur
     enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
+    laneHalf = 13,         -- playable corridor: spawns anchor inside it
 }
 
 -- player body / animation

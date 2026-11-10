@@ -76,10 +76,11 @@ function Dino.spawnEvent(kind, P, y)
     local r = math.random
 
     if kind == "comps" then
+        local cx = P:futureX(y)
         if U.chance(.5) then
             -- 闲逛的：单只横向(或斜向)溜达
             local side = U.chance(.5) and 1 or -1
-            add(Dino.enemies, kind, P.x + side * 10, y, def.radius, {
+            add(Dino.enemies, kind, cx + side * 10, y, def.radius, {
                 sprite = def.sprite, def = def.def, hp = def.def,
                 vx = -side * (r() < .5 and 2.2 or 4),
                 vy = U.chance(.4) and -1.2 or 0,
@@ -87,7 +88,7 @@ function Dino.spawnEvent(kind, P, y)
         else
             -- 连绵一排：需要射开缺口穿过
             local n = 5 + math.floor(r() * 3)
-            local x0 = P.x - n * .8
+            local x0 = cx - n * .8
             for i = 1, n do
                 add(Dino.enemies, kind, x0 + (i - 1) * 1.6, y, def.radius, {
                     sprite = def.sprite, def = def.def, hp = def.def,
@@ -98,8 +99,9 @@ function Dino.spawnEvent(kind, P, y)
 
     elseif kind == "trike" then
         local pack = U.chance(.4) and 3 or 1
+        local cx = P:futureX(y)
         for i = 1, pack do
-            add(Dino.enemies, kind, P.x + (i - 1) * 1.8 - pack * .9,
+            add(Dino.enemies, kind, cx + (i - 1) * 1.8 - pack * .9,
                 y + 6 + i * 1.5, def.radius, {
                 sprite = def.sprite, def = def.def, hp = def.def,
                 charge = true, vy = -(3.2 + r()), vx = 0,
@@ -117,7 +119,7 @@ function Dino.spawnEvent(kind, P, y)
 
     elseif kind == "para" then
         -- 带崽的鸭嘴龙：成体杵着，幼体在判定范围内四散
-        local x0 = P.x + (r() * 2 - 1) * 3
+        local x0 = P:futureX(y) + (r() * 2 - 1) * 3
         for i = 1, 2 do
             add(Dino.enemies, kind, x0 + (i - 1) * 1.6 - .8, y, def.radius, {
                 sprite = def.sprite, def = def.def, hp = def.def, still = true,
@@ -141,7 +143,7 @@ function Dino.spawnEvent(kind, P, y)
         if U.chance(.5) then
             -- 横向移动发射羽毛后跑掉
             local side = U.chance(.5) and 1 or -1
-            add(Dino.enemies, kind, P.x + side * 9, y, def.radius, {
+            add(Dino.enemies, kind, P:futureX(y) + side * 9, y, def.radius, {
                 sprite = def.sprite, def = def.def, hp = def.def,
                 vx = -side * 3.2, shooter = true, shootT = .4 + r(),
             })

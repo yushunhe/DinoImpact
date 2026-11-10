@@ -31,6 +31,15 @@ local function steps(n, dt, keys)
     for i = 1, n do step(dt, keys) end
 end
 
+-- a real player resumes after every hit instead of sitting stunned
+-- (keys default to W; pass {right=true} to resume while holding heading 右)
+local function resumeSteps(n, keys)
+    keys = keys or { up = true }
+    for _ = 1, n do
+        if P.stunned then step(.05, keys) else step(.05) end
+    end
+end
+
 local function countEntities()
     local n = 0
     for _ in pairs(host._debug.entities()) do n = n + 1 end
@@ -40,6 +49,12 @@ end
 local function startFresh()
     Game.startRun()
     Game.debugClearTrack()
+end
+
+-- same, but the spawn director stays armed (natural rows appear)
+local function startLive()
+    startFresh()
+    Game.debugEnableSpawning()
 end
 
 io.write("boot / menu\n")
@@ -126,26 +141,37 @@ steps(30, .05)
 check(P.arrows >= 1, "arrows recharge after the cooldown")
 
 io.write("shooting dinos (1.2.6)\n")
+-- keep exactly one enemy on the field: events may roll lone stragglers or
+-- full packs/walls, and leftover bodies would muddy the counts
+local function keepOnlyLast()
+    local e = D.enemies[#D.enemies]
+    for i = #D.enemies - 1, 1, -1 do
+        Host.entity.kill(D.enemies[i].id)
+        table.remove(D.enemies, i)
+    end
+    return e
+end
 startFresh()
 D.spawnEvent("comps", P, P.y + 2)
-local e = D.enemies[#D.enemies]
-e.x, e.y = P.x, P.y + 2
+local e = keepOnlyLast()
+e.x, e.y, e.vx, e.vy = P.x, P.y + 2, 0, 0
 step(.05, { shoot = true })
 steps(8, .05)
 check(D.kills == 1, "one arrow kills a compsognathus (def 1)")
 check(D.countEnemies() == 0, "its body leaves the field")
+startFresh()
 D.spawnEvent("trike", P, P.y + 2)
-local e2 = D.enemies[#D.enemies]
+local e2 = keepOnlyLast()
 e2.x, e2.y, e2.vy = P.x, P.y + 4, 0
 step(.05, { shoot = true })
 steps(8, .05)
-check(D.kills == 1, "one arrow is not enough for a triceratops (def 2)")
+check(D.kills == 0, "one arrow is not enough for a triceratops (def 2)")
 -- hold it still and out of contact range, then finish it off
 P.stunned = false; P.invulnT = 0
 e2.x, e2.y = P.x, P.y + 4
 step(.05, { shoot = true })
 steps(8, .05)
-check(D.kills == 2, "the second arrow downs it")
+check(D.kills == 1, "the second arrow downs it")
 
 io.write("obstacle effect classes (1.2.5)\n")
 startFresh()
@@ -247,6 +273,36 @@ local hpP2 = P.hp
 Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
 check(P.hp == hpP2 - 1, "with no chicks left the rider is hurt")
 
+io.write("lane-aware spawning\n")
+-- eggs only: obstacle rows also follow the predicted line, and a player who
+-- never weaves would get pinned against one - that is not what we check here
+local function startEggField()
+    startFresh()
+    Game.debugEnableSpawning("eggs")
+end
+startEggField()
+step(.05, { right = true }); step(.05, { right = true })   -- heading 右
+resumeSteps(150, { right = true })
+check(P.x <= Config.spawn.laneHalf + 2.01, "player clamped to the lane edge")
+check(P.x > 10, "holding 右 actually reaches the edge (x=" .. string.format("%.1f", P.x) .. ")")
+local wide = 0
+for _, it in ipairs(T.items) do
+    if it.y > P.y and it.x > 6 then wide = wide + 1 end
+end
+check(wide > 0, "spawns follow the heading: " .. wide .. " items ahead out wide")
+local eggsWide = P.eggs
+resumeSteps(300, { right = true })
+check(P.eggs - eggsWide >= 5, "still collecting eggs while hugging the edge (" .. (P.eggs - eggsWide) .. ")")
+startEggField()
+local eggsCenter = P.eggs
+resumeSteps(250)
+check(P.eggs - eggsCenter >= 3, "straight run still feeds eggs along the middle (+" .. (P.eggs - eggsCenter) .. ")")
+-- the prediction itself
+startFresh()
+check(math.abs(P:futureX(P.y + 10) - P.x) < .01, "futureX straight = current x")
+step(.05, { right = true })
+check(P:futureX(P.y + 10) > P.x + 2, "futureX leans right with the heading")
+
 io.write("pause / resume / restart\n")
 startFresh()
 steps(10, .05)
@@ -263,22 +319,29 @@ Game.enterMenu()
 check(Game.state == "menu" and host._debug.visible().menu_bg == true, "back to menu")
 
 io.write("endless plain and bounded entities\n")
-startFresh()
+startLive()
 math.randomseed(7)
-local maxEnts = 0
+local maxEnts, sawEnemy, sawMount, eggsTotal = 0, false, false, 0
 for i = 1, 2400 do
     P.hp = 99   -- survive blocking hits so the sim keeps running
     if i % 90 == 0 then step(.05, { left = true }) end
     if i % 90 == 45 then step(.05, { right = true }) end
     if i % 200 == 0 then step(.05, { shoot = true }) end
-    if Game.state ~= "playing" then startFresh() end
-    step(.05)
+    if Game.state ~= "playing" then eggsTotal = eggsTotal + P.eggs; startLive() end
+    if P.stunned then step(.05, { up = true }) else step(.05) end
+    if D.countEnemies() > 0 then sawEnemy = true end
+    for _, it in ipairs(T.items) do
+        if it.type == "mount" then sawMount = true; break end
+    end
     local n = countEntities()
     if n > maxEnts then maxEnts = n end
 end
-check(maxEnts < 400, "entity count stays bounded (" .. maxEnts .. ")")
+eggsTotal = eggsTotal + P.eggs
+check(maxEnts < 400, "entity count stays bounded with live spawning (" .. maxEnts .. ")")
 check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
-check(D.kills > 0 or true, "event director ran without errors")
+check(sawEnemy, "the event director spawns nuisance dinos")
+check(sawMount, "sleeping mount dinos appear on the road")
+check(eggsTotal > 20, "a real run harvests eggs naturally (eggs=" .. eggsTotal .. ")")
 
 io.write("HUD text\n")
 startFresh()
