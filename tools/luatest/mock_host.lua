@@ -187,6 +187,9 @@ function M.new()
         up = function() return false end,
         down = function() return false end,
         number = function() return false end,
+        shoot = function() return false end,
+        mount = function() return false end,
+        skill = function() return false end,
     }
 
     host._debug = {

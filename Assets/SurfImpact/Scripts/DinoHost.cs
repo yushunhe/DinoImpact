@@ -433,6 +433,9 @@ namespace DinoImpact
             input.Set("up", Fn((s, a) => DynValue.NewBoolean(_input.SelectUpPressed)));
             input.Set("down", Fn((s, a) => DynValue.NewBoolean(_input.SelectDownPressed)));
             input.Set("number", Fn((s, a) => DynValue.NewBoolean(_input.NumberPressed((int)NumArg(a, 0)))));
+            input.Set("shoot", Fn((s, a) => DynValue.NewBoolean(_input.ShootPressed)));
+            input.Set("mount", Fn((s, a) => DynValue.NewBoolean(_input.MountPressed)));
+            input.Set("skill", Fn((s, a) => DynValue.NewBoolean(_input.SkillPressed)));
 
             host.Set("entity", DynValue.NewTable(entity));
             host.Set("world", DynValue.NewTable(world));

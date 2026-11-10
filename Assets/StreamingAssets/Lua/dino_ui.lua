@@ -1,12 +1,16 @@
 -- All HUD and menus are built from Lua through Host.ui.
 -- Animation is driven by fx.lua (easing + tweens); keyboard navigation is
 -- handled here so every screen can be driven without a mouse.
+-- HUD follows the design doc's screen sketch (1.2.2 / 2): hearts + stats on
+-- the left, mount portrait (as text) and arrows on the right.
 local Config = require("dino_config")
 local U = require("util")
 local I = require("input")
 local fx = require("fx")
 
 local C = Config.colors
+local R = Config.run
+local A = Config.arrow
 local UI = {
     onAction = nil,
     cache = {},
@@ -17,6 +21,10 @@ local UI = {
     screen = nil,
     index = 1,
     lastEggs = 0,
+    lastKills = 0,
+    lastMounts = 0,
+    lastArrows = A.max,
+    lastHp = R.hpMax,
     titleT = 0,
     fade = { a = 0, color = C.ink },
     toast = { y = .30, a = 1, s = 1 },
@@ -93,7 +101,6 @@ function UI.fadeTo(a, dur, color, done)
         "fade", function() applyFade() end)
 end
 
--- Short colour flash (used on impact / new best).
 function UI.flash(color, dur)
     UI.fade.color = color or "#FFFFFF"
     UI.fade.a = .8
@@ -103,7 +110,6 @@ function UI.flash(color, dur)
         "fade", function() applyFade() end)
 end
 
--- Fade the scene in from the background colour.
 function UI.transitionIn(dur)
     UI.fade.a = 1
     UI.fade.color = C.ink
@@ -115,12 +121,24 @@ end
 
 function UI.init()
     -- HUD -------------------------------------------------------------------
-    Host.ui.label("hud_distance", "0 m", .035, .062, 34, C.white, "left")
-    Host.ui.label("hud_score", "SCORE 0", .035, .118, 22, C.muted, "left")
-    Host.ui.label("hud_eggs", "EGGS 0", .965, .062, 28, C.accent, "right")
-    Host.ui.label("hud_hint", "W/UP RUN    S/DOWN STOP    A/D STEER    ESC PAUSE", .5, .955, 17, C.muted, "center")
+    -- hearts (design doc 1.2.2) - placeholder art: text hearts, replaceable
+    Host.ui.label("hud_hearts", "", .035, .062, 30, C.heart, "left")
+    Host.ui.label("hud_distance", "0 m", .035, .115, 24, C.white, "left")
+    Host.ui.label("hud_eggs", "EGGS 0", .035, .162, 20, C.accent, "left")
+    Host.ui.label("hud_kills", "KILLS 0", .035, .205, 20, C.accent2, "left")
+    Host.ui.label("hud_mounts", "MOUNTS 0", .035, .248, 20, C.gold, "left")
+    -- right side: arrows + current mount (portrait placeholder = its name)
+    Host.ui.label("hud_arrows", "", .965, .062, 26, C.white, "right")
+    Host.ui.label("hud_mount", "", .965, .115, 22, C.accent2, "right")
+    Host.ui.label("hud_uses", "", .965, .158, 22, C.accent, "right")
+    -- centre-top: mount prompt (1.2.7)
+    Host.ui.label("hud_prompt", "", .5, .06, 26, C.buttonHi, "center")
+    Host.ui.label("hud_hint", "A/D STEER   W CENTER   S SHOOT   J MOUNT   SPACE SKILL", .5, .955, 16, C.muted, "center")
     Host.ui.label("hud_toast", "", .5, .30, 40, C.accent, "center")
-    UI.hudNames = { "hud_distance", "hud_score", "hud_eggs", "hud_hint" }
+    UI.hudNames = {
+        "hud_hearts", "hud_distance", "hud_eggs", "hud_kills", "hud_mounts",
+        "hud_arrows", "hud_mount", "hud_uses", "hud_prompt", "hud_hint",
+    }
 
     -- Title -----------------------------------------------------------------
     Host.ui.panel("menu_bg", .5, .5, 1920, 1080, C.ink)
@@ -128,9 +146,9 @@ function UI.init()
     Host.ui.label("menu_sub", Config.subtitle .. "  -  LUA-POWERED", .5, .255, 25, C.accent2, "center")
     Host.ui.label("menu_best", "BEST  0", .5, .325, 24, C.gold, "center")
     Host.ui.button("menu_start", "START RUN", .5, .44, 380, 74, action("start"))
-    Host.ui.label("menu_controls", "W / UP   RUN FORWARD        S / DOWN   STOP", .5, .55, 23, C.white, "center")
-    Host.ui.label("menu_controls2", "A D / LEFT RIGHT   STEER      -      NO GOING BACK", .5, .60, 21, C.accent2, "center")
-    Host.ui.label("menu_goal", "Collect eggs.  Dodge rocks, logs and bushes.", .5, .675, 23, C.white, "center")
+    Host.ui.label("menu_controls", "A / D   STEP HEADING     W   SNAP TO CENTER", .5, .55, 23, C.white, "center")
+    Host.ui.label("menu_controls2", "S   SHOOT ARROW      J   MOUNT SLEEPING DINO      SPACE   SKILL", .5, .60, 21, C.accent2, "center")
+    Host.ui.label("menu_goal", "You ride automatically. Dodge or shoot. Collect eggs. Swap dinos.", .5, .675, 23, C.white, "center")
     Host.ui.label("menu_footer", "ENTER START      ARROWS / WASD TO MOVE", .5, .93, 16, C.muted, "center")
     UI.menuNames = {
         "menu_bg", "menu_title", "menu_sub", "menu_best", "menu_start",
@@ -149,17 +167,18 @@ function UI.init()
 
     -- Results ---------------------------------------------------------------
     Host.ui.panel("results_bg", .5, .5, 1920, 1080, C.ink)
-    Host.ui.label("results_title", "GAME OVER", .5, .2, 76, C.red, "center")
-    Host.ui.label("results_reason", "", .5, .285, 24, C.muted, "center")
-    Host.ui.label("results_score", "SCORE 0", .5, .38, 52, C.accent, "center")
-    Host.ui.label("results_detail", "", .5, .465, 24, C.white, "center")
-    Host.ui.label("results_best", "", .5, .525, 24, C.gold, "center")
-    Host.ui.button("results_retry", "RUN AGAIN", .5, .655, 380, 70, action("retry"))
-    Host.ui.button("results_menu", "MAIN MENU", .5, .755, 380, 70, action("menu"))
+    Host.ui.label("results_title", "GAME OVER", .5, .18, 76, C.red, "center")
+    Host.ui.label("results_reason", "", .5, .265, 24, C.muted, "center")
+    Host.ui.label("results_score", "SCORE 0", .5, .36, 52, C.accent, "center")
+    Host.ui.label("results_d1", "", .5, .45, 24, C.white, "center")
+    Host.ui.label("results_d2", "", .5, .505, 24, C.white, "center")
+    Host.ui.label("results_best", "", .5, .585, 24, C.gold, "center")
+    Host.ui.button("results_retry", "RUN AGAIN", .5, .69, 380, 70, action("retry"))
+    Host.ui.button("results_menu", "MAIN MENU", .5, .79, 380, 70, action("menu"))
     styleButton("results_retry"); styleButton("results_menu")
     UI.resultsNames = {
         "results_bg", "results_title", "results_reason", "results_score",
-        "results_detail", "results_best", "results_retry", "results_menu",
+        "results_d1", "results_d2", "results_best", "results_retry", "results_menu",
     }
 
     UI.showHud(false)
@@ -167,6 +186,7 @@ function UI.init()
     UI.showResults(false)
     UI.showMenu(true)
     Host.ui.show("hud_toast", false)
+    Host.ui.show("hud_prompt", false)
     UI.fade.a = 0
     applyFade()
     Host.ui.setVignette(false)
@@ -261,13 +281,15 @@ end
 
 function UI.resetRun()
     UI.cache = {}
-    UI.lastEggs = 0
+    UI.lastEggs, UI.lastKills, UI.lastMounts = 0, 0, 0
+    UI.lastArrows, UI.lastHp = A.max, R.hpMax
     UI.showMenu(false)
     UI.showPause(false)
     UI.showResults(false)
     UI.showHud(true)
     setActive(nil)
     Host.ui.show("hud_toast", false)
+    Host.ui.show("hud_prompt", false)
     Host.ui.setVignette(false)
     UI.transitionIn(.35)
     fx.sound("gate", .8)
@@ -289,17 +311,64 @@ local function showToast(text)
         end)
 end
 
-function UI.updateHud(P)
+function UI.updateHud(P, Mount)
     local distance = math.floor(P.distance + .5)
     local score = distance + P.eggs * Config.spawn.eggValue
+
     setText("hud_distance", U.comma(distance) .. " m")
-    setText("hud_score", "SCORE  " .. U.comma(score))
-    setText("hud_eggs", "EGGS  " .. tostring(P.eggs))
+    setText("hud_eggs", "EGGS " .. tostring(P.eggs))
+    setText("hud_kills", "KILLS " .. tostring(Mount and require("dino_dinos").kills or 0))
+
+    -- hearts: full + lost (1.2.2)
+    local hearts = ""
+    for i = 1, R.hpMax do
+        hearts = hearts .. (i <= P.hp and "♥ " or "♡ ")
+    end
+    setText("hud_hearts", hearts)
+    if P.hp < UI.lastHp then
+        UI.lastHp = P.hp
+        popLabel("hud_hearts", 1.6, .3)
+        UI.flash(C.red, .25)
+    elseif P.hp > UI.lastHp then
+        UI.lastHp = P.hp
+        popLabel("hud_hearts", 1.3, .2)
+    end
+
+    -- arrow inventory (1.2.3)
+    local arrows = ""
+    for i = 1, A.max do
+        arrows = arrows .. (i <= P.arrows and "➳ " or "- ")
+    end
+    setText("hud_arrows", arrows)
+    if P.arrows < UI.lastArrows then
+        popLabel("hud_arrows", 1.35, .12)
+        UI.lastArrows = P.arrows
+    elseif P.arrows > UI.lastArrows then
+        UI.lastArrows = P.arrows
+    end
+
+    -- current mount: portrait is a name label until real art exists
+    if Mount then
+        local info = Mount.info()
+        setText("hud_mount", info.label)
+        setText("hud_uses", "x" .. tostring(info.uses))
+        if Mount.mountCount > UI.lastMounts then
+            UI.lastMounts = Mount.mountCount
+            popLabel("hud_mounts", 1.4, .2)
+        end
+        setText("hud_mounts", "MOUNTS " .. tostring(Mount.mountCount))
+        -- mount prompt (1.2.7)
+        if Mount.prompt then
+            setText("hud_prompt", "[J] MOUNT THE " .. info.label)
+            Host.ui.show("hud_prompt", true)
+        else
+            Host.ui.show("hud_prompt", false)
+        end
+    end
 
     if P.eggs > UI.lastEggs then
         UI.lastEggs = P.eggs
         popLabel("hud_eggs", 1.4, .16)
-        popLabel("hud_score", 1.18, .14)
         showToast("+" .. Config.spawn.eggValue)
     elseif P.eggs < UI.lastEggs then
         UI.lastEggs = P.eggs
@@ -330,22 +399,23 @@ function UI.showResultsPanel(data)
     UI.showHud(false)
     UI.showPause(false)
     UI.showResults(true)
-    UI.cache.results_title = nil
-    UI.cache.results_reason = nil
-    UI.cache.results_detail = nil
-    UI.cache.results_best = nil
-    UI.cache.results_score = nil
+    for _, n in ipairs({ "results_title", "results_reason", "results_d1",
+                         "results_d2", "results_best", "results_score" }) do
+        UI.cache[n] = nil
+    end
     setText("results_title", data.title or "GAME OVER")
     setText("results_reason", data.reason or "You hit an obstacle.")
-    setText("results_detail", string.format("DISTANCE  %s m      EGGS  %d",
+    -- the four stat lines from 1.2.2 / section 2
+    setText("results_d1", string.format("DISTANCE  %s m      EGGS  %d",
         U.comma(math.floor((data.distance or 0) + .5)), data.eggs or 0))
+    setText("results_d2", string.format("KILLS  %d      MOUNTS  %d",
+        data.kills or 0, data.mounts or 0))
     if data.newBest then
         setText("results_best", "NEW BEST!")
     else
         setText("results_best", "BEST  " .. U.comma(data.best or 0))
     end
 
-    -- score counts up
     local target = data.score or 0
     setText("results_score", "SCORE  0")
     fx.to(.75, { v = 0 }, { v = target }, fx.ease.cubic_out,
@@ -355,8 +425,8 @@ function UI.showResultsPanel(data)
             Host.ui.setText("results_score", "SCORE  " .. U.comma(math.floor(t.v + .5)))
         end)
 
-    popIn({ "results_title", "results_score", "results_detail", "results_best",
-            "results_retry", "results_menu" })
+    popIn({ "results_title", "results_score", "results_d1", "results_d2",
+            "results_best", "results_retry", "results_menu" })
 
     if data.newBest then
         UI.flash(C.gold, .4)

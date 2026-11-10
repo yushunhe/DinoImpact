@@ -72,12 +72,17 @@ namespace SurfImpact
             }
         }
 
-        public bool PausePressed =>
-            Input.GetKeyDown(KeyCode.Space) || Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P);
+        // Space is the in-game skill key; pause lives on Esc / P only.
+        public bool PausePressed => Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.P);
 
         public bool BoostPressed => Input.GetKeyDown(KeyCode.F);
 
         public bool RestartPressed => Input.GetKeyDown(KeyCode.R);
+
+        // Design doc keys: S shoots, J mounts a sleeping dinosaur, Space uses the skill.
+        public bool ShootPressed => Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow);
+        public bool MountPressed => Input.GetKeyDown(KeyCode.J);
+        public bool SkillPressed => Input.GetKeyDown(KeyCode.Space);
 
         public bool ConfirmPressed =>
             Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space);

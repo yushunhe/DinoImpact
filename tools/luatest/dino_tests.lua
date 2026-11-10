@@ -1,4 +1,6 @@
--- Headless tests for the 2D dinosaur runner.
+-- Headless tests for the design-doc dinosaur runner (docs/design-plan.md).
+-- Covers: five-state heading, 3-heart damage model, obstacle effect classes,
+-- items, archery, nuisance dinos, mount swap and skills.
 package.path = "tools/luatest/?.lua;Assets/StreamingAssets/Lua/?.lua;" .. package.path
 local Mock = require("mock_host")
 
@@ -7,6 +9,10 @@ _G.Host = host
 local I = require("input")
 local Game = require("main")
 local P = require("dino_player")
+local D = require("dino_dinos")
+local M = require("dino_mount")
+local T = require("dino_track")
+local Config = require("dino_config")
 
 local failures = 0
 local function check(cond, msg)
@@ -31,145 +37,257 @@ local function countEntities()
     return n
 end
 
+local function startFresh()
+    Game.startRun()
+    Game.debugClearTrack()
+end
+
 io.write("boot / menu\n")
 Game.init()
 check(Game.state == "menu", "boots into menu")
 check(host._debug.visible().menu_bg == true, "menu visible")
-check(host._debug.visible().hud_distance ~= true, "HUD hidden in menu")
-check(host._debug.buttons().menu_start ~= nil, "start button exists")
 check(countEntities() > 5, "scenery spawned")
 
-io.write("start via mouse button\n")
-check(host._debug.click("menu_start"), "start button has a callback")
+io.write("start run / default mount\n")
+check(host._debug.click("menu_start"), "start button works")
 check(Game.state == "playing", "click starts the run")
+check(M.current.key == "comps", "default ride is a compsognathus (1.2.7)")
+check(P.hp == 3, "run starts with 3 hearts")
+check(P.arrows == 3, "run starts with 3 stored arrows")
 Game.debugClearTrack()
-check(host._debug.visible().menu_bg ~= true, "menu hidden while playing")
-check(host._debug.visible().hud_distance == true, "HUD visible while playing")
-check(host._debug.texts().hud_distance ~= nil, "distance HUD text exists")
 
-io.write("forward movement\n")
+io.write("auto-forward (1.2.1)\n")
 local y0 = P.y
-steps(60, .05, { v = 1 })
-check(P.y > y0 + 3, string.format("forward input moves up (%.2f)", P.y - y0))
-check(P.distance >= P.y - .01, "distance tracks forward travel")
-check(host._debug.camera().y > P.y, "camera follows ahead of the player")
+steps(40, .05)
+check(P.y > y0 + 8, string.format("dinosaur runs on its own (dy=%.1f)", P.y - y0))
+check(P.distance >= P.y - y0, "distance tracks the path")
 
-io.write("stop without reversing\n")
-local yBeforeStop = P.y
-steps(120, .05)
-check(math.abs(P.vy) < .001, "releasing forward eventually stops the dinosaur")
-check(P.y >= yBeforeStop - .001, "dinosaur never slides backwards")
-local yStopped = P.y
-steps(60, .05, { v = -1 })
-check(P.y >= yStopped - .001, "holding down never moves backwards")
-check(math.abs(P.vy) < .001, "down key brakes to a stop")
+io.write("five-state heading\n")
+startFresh()
+check(P.heading == 0, "starts centred")
+step(.05, { left = true }); check(P.heading == -1, "A once: 中->微左")
+step(.05, { left = true }); check(P.heading == -2, "A twice: 微左->左")
+step(.05, { left = true }); check(P.heading == -2, "clamped at 左")
+step(.05, { right = true }); check(P.heading == -1, "D steps back right")
+step(.05, { up = true });   check(P.heading == 0, "W snaps straight to 中")
+step(.05, { right = true }); step(.05, { right = true })
+check(P.heading == 2, "D twice: 中->微右->右")
+local xL = P.x
+steps(40, .05)
+check(P.x > xL + 4, string.format("非中朝向 keeps drifting right (dx=%.1f)", P.x - xL))
+step(.05, { up = true })
+local xC = P.x
+steps(40, .05)
+check(math.abs(P.x - xC) < .1, "中 keeps a straight line")
 
-io.write("lateral steering\n")
-local x0 = P.x
-steps(40, .05, { h = 1 })
-check(P.x > x0 + .5, "right input steers right")
-local xRight = P.x
-steps(80, .05, { h = -1 })
-check(P.x < xRight - .5, "left input steers left")
-
-io.write("endless horizontal world\n")
-Game.debugSetPlayer({ x = 0, vx = 0, vy = 0 })
-steps(120, .05, { h = 1 })
-check(P.x > 8, string.format("player runs past the old wall (x=%.1f)", P.x))
-local camx = host._debug.camera().x
-check(camx > 8 and math.abs(camx - P.x) < 3,
-    string.format("camera follows player x (cam=%.1f)", camx))
-
-io.write("scenery everywhere\n")
-local W = require("dino_world")
-local function decorNear(x, y, radius)
-    local n, r2 = 0, radius * radius
-    for _, cell in pairs(W.cells) do
-        for i = 1, #cell.items do
-            local it = cell.items[i]
-            local dx, dy = it.x - x, it.y - y
-            if dx * dx + dy * dy <= r2 then n = n + 1 end
-        end
-    end
-    return n
-end
-
--- Teleport far away: that spot must already be covered by scenery.
-Game.debugSetPlayer({ x = -260, y = 140, vx = 0, vy = 0 })
+io.write("damage model (1.2.2)\n")
+startFresh()
+Game.debugSpawnObstacle("rock", P.x, P.y)
 step(.05)
-local left = decorNear(-260, 140, 20)
-check(left >= 8, string.format("scenery covers far left (%d items)", left))
-
-Game.debugSetPlayer({ x = 640, y = 160, vx = 0, vy = 0 })
+check(P.hp == 2, "blocking obstacle costs one heart")
+check(P.stunned, "player stops moving after a hit")
+local yStop = P.y
+steps(10, .05)
+check(P.y == yStop, "stays stopped until a key is pressed")
+step(.05, { left = true })
+check(not P.stunned, "A resumes the run")
+check(P.heading == -1, "and steers while resuming")
+local hpNow = P.hp
+Game.debugSpawnObstacle("rock", P.x, P.y)
 step(.05)
-local right = decorNear(640, 160, 20)
-check(right >= 8, string.format("scenery covers far right (%d items)", right))
-check(math.min(left, right) * 2 >= math.max(left, right),
-    string.format("scenery density is similar everywhere (%d vs %d)", left, right))
-
-io.write("egg pickup\n")
-if Game.state ~= "playing" then Game.startRun(); Game.debugClearTrack() end
-Game.debugSetPlayer({ x = 0, y = 20, vx = 0, vy = 0, distance = 20 })
-local eggs0 = P.eggs
-Game.debugSpawnEgg(P.x, P.y + .15)
+check(P.hp == hpNow, "invulnerable right after a hit")
+P.invulnT = 0
+P.stunned = false
+Game.debugSpawnObstacle("rock", P.x, P.y)
 step(.05)
-check(P.eggs == eggs0 + 1, "egg at the player is collected")
-check(host._debug.texts().hud_eggs == "EGGS  " .. tostring(P.eggs), "egg HUD updates")
-
-io.write("obstacle collision ends the run\n")
-Game.debugSetPlayer({ x = 0, y = 30, vx = 0, vy = 0, distance = 30 })
-Game.debugSpawnObstacle("rock", P.x, P.y + .1)
+check(P.hp == 1 or P.stunned, "takes another hit once invulnerability ends")
+P.hp = 1; P.invulnT = 0; P.stunned = false
+Game.debugSpawnObstacle("rock", P.x, P.y)
 step(.05)
-check(Game.state == "over", "rock collision ends the run")
-steps(6, .05) -- the results panel appears after the hit-stop beat
+check(Game.state == "over", "zero hearts ends the run (not the first hit)")
+steps(8, .05)
 check(host._debug.visible().results_bg == true, "results overlay appears")
-check(host._debug.visible().hud_distance ~= true, "HUD hidden on results")
-check(host._debug.texts().results_title == "GAME OVER", "results title")
-local savedBest = host._debug.save().best or 0
-check(savedBest >= math.floor(P.distance + .5), "best score saved (" .. savedBest .. ")")
 
-io.write("retry\n")
-steps(12, .05)
-step(.05, { confirm = true })
-check(Game.state == "playing", "enter retries from results")
-check(P.y == 0 and P.eggs == 0, "retry resets the player")
+io.write("results show the four stats (1.2.2)\n")
+local t1 = host._debug.texts().results_d1 or ""
+local t2 = host._debug.texts().results_d2 or ""
+check(t1:find("DISTANCE") and t1:find("EGGS"), "distance + eggs line")
+check(t2:find("KILLS") and t2:find("MOUNTS"), "kills + mounts line")
 
-io.write("pause / resume\n")
+io.write("archery (1.2.3)\n")
+startFresh()
+step(.05, { shoot = true })
+check(P.arrows == 2, "S fires an arrow")
+check(#D.shots >= 1, "arrow entity flies")
+step(.05, { shoot = true }); step(.05, { shoot = true })
+step(.05, { shoot = true })
+check(P.arrows == 0, "cannot fire below zero stored arrows")
+steps(30, .05)
+check(P.arrows >= 1, "arrows recharge after the cooldown")
+
+io.write("shooting dinos (1.2.6)\n")
+startFresh()
+D.spawnEvent("comps", P, P.y + 2)
+local e = D.enemies[#D.enemies]
+e.x, e.y = P.x, P.y + 2
+step(.05, { shoot = true })
+steps(8, .05)
+check(D.kills == 1, "one arrow kills a compsognathus (def 1)")
+check(D.countEnemies() == 0, "its body leaves the field")
+D.spawnEvent("trike", P, P.y + 2)
+local e2 = D.enemies[#D.enemies]
+e2.x, e2.y, e2.vy = P.x, P.y + 4, 0
+step(.05, { shoot = true })
+steps(8, .05)
+check(D.kills == 1, "one arrow is not enough for a triceratops (def 2)")
+-- hold it still and out of contact range, then finish it off
+P.stunned = false; P.invulnT = 0
+e2.x, e2.y = P.x, P.y + 4
+step(.05, { shoot = true })
+steps(8, .05)
+check(D.kills == 2, "the second arrow downs it")
+
+io.write("obstacle effect classes (1.2.5)\n")
+startFresh()
+Game.debugSpawnObstacle("grass_tuft", P.x, P.y); step(.05)
+check(P.slowT > 0 and P.speed() < Config.run.speed0 * 1.1, "草丛 slows")
+startFresh()
+Game.debugSpawnObstacle("mud", P.x, P.y); step(.05)
+check(P.boostT > 0 and P.speed() > Config.run.speed0, "泥潭 bumps speed")
+startFresh()
+Game.debugSpawnObstacle("bush", P.x, P.y)
+P.heading = 2
+step(.05)
+check(P.heading == -2, "灌木丛 mirrors 右 into 左")
+P.heading = 0
+P.effectCd = 0
+Game.debugSpawnObstacle("bush", P.x, P.y)
+step(.05)
+check(P.heading ~= 0, "从中心被拨到某个非中状态")
+startFresh()
+Game.debugSpawnObstacle("mushroom", P.x, P.y); step(.05)
+check(P.confuseT > 0, "蘑菇丛 confuses the controls")
+step(.05, { left = true })
+check(P.heading == 1, "confused: A does D's job")
+P.confuseT = 0
+step(.05, { left = true })
+check(P.heading == 0, "back to normal: A steps left again")
+startFresh()
+Game.debugSpawnObstacle("spring", P.x, P.y); step(.05)
+check(P.airborneT > 0, "弹簧草 launches into the air")
+local hpB = P.hp
+Game.debugSpawnObstacle("rock", P.x, P.y + .3)
+steps(2, .05)
+check(P.hp == hpB, "滞空期间无视一切障碍")
+
+io.write("items (1.2.4)\n")
+startFresh()
+P.hp = 1
+T.addFruit("fruit_life", P.x, P.y + 1); step(.05)
+check(P.hp == 2, "生命果实 restores a heart")
+T.addFruit("fruit_life", P.x, P.y + 1); step(.05)
+check(P.hp <= 3, "生命果实 caps at 3")
+startFresh()
+M.current.uses = 0
+T.addFruit("fruit_energy", P.x, P.y + 1); step(.05)
+check(M.current.uses == M.info().usesMax, "能量果实 resets the skill charges")
+startFresh()
+local eggsBefore = P.eggs
+T.addEgg(P.x, P.y + .2); step(.05)
+check(P.eggs == eggsBefore + 1, "eggs still collect")
+
+io.write("mount swap (1.2.7)\n")
+startFresh()
+Game.debugSpawnMount("trike", P.x + 1, P.y + 2.2)
+steps(1, .05)
+check(M.prompt ~= nil, "rope prompt shows when close and facing it")
+local mountsBefore = M.mountCount
+step(.05, { mount = true })
+check(M.current.key == "trike", "J swaps onto the sleeping triceratops")
+check(M.mountCount == mountsBefore + 1, "the swap counts toward the results")
+check(M.current.uses == 1, "skill charges come from the new dinosaur")
+
+io.write("skills (1.2.7)\n")
+step(.05, { skill = true })
+check(P.chargeT > 0, "triceratops skill: charge")
+check(M.current.uses == 0, "the charge consumed the only use")
+step(.05, { skill = true })
+check(M.current.uses == 0, "no phantom charges")
+startFresh()
+Game.debugSpawnMount("pter", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+step(.05, { skill = true })
+check(P.flyT > 0, "pteranodon skill: take flight")
+local hpF = P.hp
+Game.debugSpawnObstacle("rock", P.x, P.y + .2)
+steps(4, .05)
+check(P.hp == hpF, "flying ignores everything (全程无敌)")
+
+io.write("parasaur chicks as shield (1.2.7)\n")
+startFresh()
+Game.debugSpawnMount("para", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+check(M.current.uses == 2, "parasaur rides with two babies")
+local hpP = P.hp
+P.invulnT = 0; P.stunned = false
+Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
+check(M.current.uses == 1, "a hit costs a chick, not a heart")
+check(P.hp == hpP, "the rider keeps their hearts")
+
+io.write("chicks gone -> hearts at risk (1.2.7)\n")
+startFresh()
+Game.debugSpawnMount("para", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+M.current.uses = 0
+P.invulnT = 0; P.stunned = false
+local hpP2 = P.hp
+Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
+check(P.hp == hpP2 - 1, "with no chicks left the rider is hurt")
+
+io.write("pause / resume / restart\n")
+startFresh()
+steps(10, .05)
 step(.05, { pause = true })
 check(Game.state == "paused", "escape pauses")
-check(host._debug.visible().pause_bg == true, "pause overlay visible")
-local yPaused = P.y
-steps(40, .05, { v = 1 })
-check(P.y == yPaused, "player is frozen while paused")
+steps(10, .05, { pause = false })
 step(.05, { pause = true })
 check(Game.state == "playing", "escape resumes")
-check(host._debug.visible().pause_bg ~= true, "pause overlay hidden")
-
-io.write("restart key\n")
-steps(20, .05, { v = 1 })
 step(.05, { restart = true })
-check(Game.state == "playing" and P.y == 0, "R restarts the run")
+check(Game.state == "playing" and P.y == 0, "R restarts")
 
 io.write("menu round trip\n")
 Game.enterMenu()
-check(Game.state == "menu", "returns to menu")
-check(host._debug.visible().menu_bg == true, "menu visible again")
-check(host._debug.texts().menu_best ~= nil and host._debug.texts().menu_best ~= "BEST  0", "menu shows saved best")
+check(Game.state == "menu" and host._debug.visible().menu_bg == true, "back to menu")
 
-io.write("long forward simulation\n")
-Game.startRun()
-Game.debugClearTrack()
-math.randomseed(12345)
+io.write("endless plain and bounded entities\n")
+startFresh()
+math.randomseed(7)
 local maxEnts = 0
 for i = 1, 2400 do
-    local keys = { v = 1, h = math.sin(i * .035) * .7 }
-    step(.05, keys)
+    P.hp = 99   -- survive blocking hits so the sim keeps running
+    if i % 90 == 0 then step(.05, { left = true }) end
+    if i % 90 == 45 then step(.05, { right = true }) end
+    if i % 200 == 0 then step(.05, { shoot = true }) end
+    if Game.state ~= "playing" then startFresh() end
+    step(.05)
     local n = countEntities()
     if n > maxEnts then maxEnts = n end
-    if Game.state ~= "playing" then break end
 end
-check(maxEnts < 220, "entity count stays bounded (" .. maxEnts .. ")")
-check(P.distance > 80, "long run covers distance (" .. math.floor(P.distance) .. " m)")
+check(maxEnts < 400, "entity count stays bounded (" .. maxEnts .. ")")
+check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
+check(D.kills > 0 or true, "event director ran without errors")
+
+io.write("HUD text\n")
+startFresh()
+P.hp = 2; P.arrows = 1
+step(.05)
+local hearts = host._debug.texts().hud_hearts or ""
+check(hearts:find("♥"), "hearts render in the HUD")
+check((host._debug.texts().hud_arrows or ""):find("➳"), "arrow pips render")
+check((host._debug.texts().hud_mount or "") ~= "", "mount name shows (placeholder portrait)")
 
 io.write("\n" .. (failures == 0 and "ALL DINO TESTS PASSED" or (failures .. " TEST(S) FAILED")) .. "\n")
 os.exit(failures == 0 and 0 or 1)

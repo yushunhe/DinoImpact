@@ -1,4 +1,5 @@
--- DINO IMPACT - small, edited-by-hand tuning table.
+-- DINO IMPACT - hand-edited tuning table. Entity tables live in dino_data.lua.
+-- All the "你来定" parameters from the design doc are collected here.
 local C = {}
 
 C.title = "DINO IMPACT"
@@ -17,64 +18,105 @@ C.colors = {
     gold      = "#F2C14E",
     darkText  = "#1A2412",
     grass     = "#3B692C",
+    heart     = "#E05A47",
 }
 
-C.player = {
-    forwardAccel = 17,
-    forwardMax = 6.4,
-    brake = 24,
-    drag = 9,
-    lateralAccel = 34,
-    lateralMax = 5.2,
-    lateralDrag = 12,
-    radius = .55,
-    animRate = .11,
-    -- no xLimit: the world is endless to the left and right.
+-- 1.2.1 heading: five discrete states. -2 左, -1 微左, 0 中, 1 微右, 2 右.
+-- The angle is where the dinosaur keeps running; W snaps back to 0.
+C.heading = {
+    min = -2,
+    max = 2,
+    angleDeg = { [-2] = -48, [-1] = -20, [0] = 0, [1] = 20, [2] = 48 },
+}
+
+-- 1.2.2 run / life: auto-forward cruise, 3 hearts, invuln after a hit.
+C.run = {
+    speed0     = 6.0,   -- base cruise speed (units/s)
+    rampDist   = 320,   -- +rampStep every N metres ...
+    rampStep   = .09,   -- ... until rampMax
+    rampMax    = 1.55,
+    hpMax      = 3,
+    invuln     = .9,    -- minimum invulnerability after losing a heart
+    blinkRate  = .09,   -- sprite flicker period while invulnerable
+}
+
+-- 1.2.3 archery: max 3 stored arrows, one refills every regen seconds.
+C.arrow = {
+    max   = 3,
+    regen = 1.15,
+    speed = 17,
+    life  = .55,
+    radius = .35,
+}
+
+-- 1.2.5 obstacle effect durations / multipliers (all "你来定" values).
+C.effects = {
+    slowDur   = 2.0,  slowMul  = .55,   -- 草丛 / 脚印坑
+    boostDur  = 1.5,  boostMul = 1.75,  -- 泥潭：脚下打滑猛然加速
+    confuseDur = 2.5,                   -- 蘑菇丛：A/D 对调
+    jumpDur   = .8,                     -- 弹簧草：滞空时间（期间无视一切障碍）
+    jumpPush  = 1.45,                   -- 跳板滞空期间的前进 burst 倍率
+    reuseCd   = .9,                     -- 同一次效果不重复触发的冷却
 }
 
 C.camera = {
     size = 6.2,
     yOffset = 3.1,
-    followRate = 9,     -- position smoothing (higher = snappier)
-    sizeLerp = 3.5,     -- how fast the zoom catches up
-    zoomRun = .45,      -- slight extra zoom-in at full sprint
+    followRate = 9,
+    sizeLerp = 3.5,
+    zoomRun = .45,
 }
 
 C.world = {
-    -- Scenery is generated in deterministic cells (see dino_world.lua), so any
-    -- part of the endless plain has the same average density.
-    decorCell = 6,      -- cell size in world units
-    decorRadius = 5,    -- cells generated around the player (30 units each way)
-    cullX = 20,         -- drop track entities further than this from the player's x
+    decorCell = 6,
+    decorRadius = 5,
+    cullX = 22,
+    cullBack = 20,     -- behind the player
+    cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity
 }
 
 C.juice = {
-    hitStop = .14,      -- gameplay freezes this long on a crash
-    shake = .42,        -- crash screen-shake amount
+    hitStop = .14,
+    shake = .42,
     shakeTime = .4,
+    hurtStop = .1,      -- smaller freeze for losing one heart
+    hurtShake = .22,
     eggShake = .05,
     eggSound = "coin",
+    hurtSound = "crash",
+    shootSound = "tick",
+    mountSound = "gate",
+    skillSound = "boost",
 }
 
+-- spawn director
 C.spawn = {
-    safeStart = 13,
-    obstacleGapMin = 11,
-    obstacleGapMax = 18,
+    safeStart = 16,
+    obstacleGapMin = 10,
+    obstacleGapMax = 17,
     eggGapMin = 7,
     eggGapMax = 13,
-    ahead = 40,
+    ahead = 46,
     eggValue = 25,
+    killValue = 60,
+    mountValue = 120,
+    fruitChance = .14,     -- an egg row becomes a guarded fruit instead
+    sleepChance = .10,     -- an obstacle row becomes a sleeping mount dinosaur
+    enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
+}
+
+-- player body / animation
+C.player = {
+    radius = .55,
+    animRate = .11,
 }
 
 C.sprites = {
-    playerIdle = "dino_idle",
-    playerIdle2 = "dino_idle2",
-    playerRun0 = "dino_run0",
-    playerRun1 = "dino_run1",
-    playerRun2 = "dino_run2",
-    playerRun3 = "dino_run3",
     shadow = "shadow",
-    egg = "egg",
+    rider = "rider",
+    arrow = "arrow",
+    zzz = "zzz",
+    rope = "rope_prompt",
 }
 
 return C

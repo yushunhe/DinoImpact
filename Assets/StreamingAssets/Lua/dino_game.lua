@@ -6,6 +6,8 @@ local fx = require("fx")
 local P = require("dino_player")
 local W = require("dino_world")
 local T = require("dino_track")
+local Dino = require("dino_dinos")
+local M = require("dino_mount")
 local UI = require("dino_ui")
 
 local Game = {
@@ -18,13 +20,16 @@ local Game = {
 
 local function clearWorld()
     T.clear()
+    Dino.clear()
     W.clear()
     P.clear()
     Host.entity.clear()
 end
 
 local function currentScore()
-    return math.floor(P.distance + .5) + P.eggs * Config.spawn.eggValue
+    local S = Config.spawn
+    return math.floor(P.distance + .5) + P.eggs * S.eggValue
+        + Dino.kills * S.killValue + M.mountCount * S.mountValue
 end
 
 function Game.init()
@@ -42,6 +47,7 @@ function Game.enterMenu()
     Game.state = "menu"
     Game.resultsLock = 0
     P.reset()
+    M.reset(P)
     W.reset(P)
     UI.setBest(Game.best)
     UI.showMenu(true)
@@ -55,13 +61,15 @@ end
 function Game.startRun()
     clearWorld()
     P.reset()
+    M.reset(P)              -- default mount: compsognathus (1.2.7)
     W.reset(P)
     T.reset(P)
+    T.onPickup = function(kind) M.onFruit(kind) end
     Game.state = "playing"
     Game.resultsLock = 0
     Game.score = 0
     UI.resetRun()
-    UI.updateHud(P)
+    UI.updateHud(P, M)
     Host.ui.setVignette(false)
 end
 
@@ -102,10 +110,12 @@ function Game.finish(reason)
     Game.resultsLock = .45 + Config.juice.hitStop
     local data = {
         title = "GAME OVER",
-        reason = reason or "You hit an obstacle.",
+        reason = reason or P.deathReason or "You hit an obstacle.",
         score = Game.score,
         distance = P.distance,
         eggs = P.eggs,
+        kills = Dino.kills,
+        mounts = M.mountCount,
         best = Game.best,
         newBest = newBest,
     }
@@ -158,10 +168,12 @@ function Game.update(dt)
 
         P.update(dt)
         W.update(dt, P)
-        local hit = T.update(dt, P)
-        UI.updateHud(P)
-        if hit then
-            Game.finish("You hit an obstacle.")
+        T.update(dt, P)      -- obstacles, items, enemies, arrows
+        M.update(dt, P, T)   -- mount prompt, J swap, Space skill, passives
+        UI.updateHud(P, M)
+
+        if not P.alive then
+            Game.finish(P.deathReason)
         end
         return
     end
@@ -201,14 +213,20 @@ function Game.debugState()
         state = Game.state,
         x = P.x,
         y = P.y,
-        vx = P.vx,
-        vy = P.vy,
+        heading = P.heading,
         distance = P.distance,
+        hp = P.hp,
         eggs = P.eggs,
+        arrows = P.arrows,
+        kills = Dino.kills,
+        mounts = M.mountCount,
+        mount = M.current.key,
+        uses = M.current.uses,
         score = currentScore(),
         best = Game.best,
         entities = Host.entity.count(),
         track = #T.items,
+        enemies = Dino.countEnemies(),
         bestSaved = Host.save.getInt("best", 0),
     }
 end
@@ -232,16 +250,32 @@ function Game.debugSpawnEgg(x, y)
     return T.addEgg(x or P.x, y or (P.y + 1))
 end
 
+function Game.debugSpawnMount(key, x, y)
+    return T.addSleepDino(key or "trike", x or (P.x + 1), y or (P.y + 1))
+end
+
+function Game.debugSpawnEnemy(kind, x, y)
+    Dino.spawnEvent(kind, P, y or (P.y + 1))
+    -- for tests: reposition the last spawned event exactly where asked
+    local last = Dino.enemies[#Dino.enemies]
+    if last and x then last.x = x end
+    return last
+end
+
 function Game.debugGetPlayer()
     return P
 end
 
 function Game.debugClearTrack()
     T.clear()
+    Dino.clear()
     T.nextObstacle = 1e9
     T.nextEgg = 1e9
+    T.nextEnemy = 1e9
 end
 
 Game.debugGetTrack = function() return T end
+Game.debugGetDinos = function() return Dino end
+Game.debugGetMount = function() return M end
 
 return Game

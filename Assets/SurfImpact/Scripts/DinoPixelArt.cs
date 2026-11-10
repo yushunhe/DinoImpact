@@ -29,10 +29,14 @@ namespace DinoImpact
         static Sprite Repivot(Sprite raw, string name)
         {
             Vector2 pivot = new Vector2(.5f, .5f);
-            if (name.StartsWith("dino_")) pivot = new Vector2(.5f, .14f);
+            if (name.StartsWith("dino_") || name.StartsWith("mount_") ||
+                name.StartsWith("enemy_") || name == "rider")
+                pivot = new Vector2(.5f, .14f);
             else if (name == "tree" || name == "fern" || name == "bush" ||
                      name == "rock" || name == "rock_small" || name == "log" ||
-                     name == "flower" || name == "pebble")
+                     name == "flower" || name == "pebble" ||
+                     name == "grass_tuft" || name == "mud" || name == "footprint" ||
+                     name == "mushroom" || name == "spring" || name == "poop")
                 pivot = new Vector2(.5f, .3f);
             if (raw.pivot == pivot && raw.border == Vector4.zero) return raw;
             var sprite = Sprite.Create(raw.texture, raw.rect, pivot, raw.pixelsPerUnit, 0, SpriteMeshType.FullRect);
@@ -59,8 +63,24 @@ namespace DinoImpact
                 case "pebble": return Pebble();
                 case "ground_grass": return GroundTile(false);
                 case "ground_path": return GroundTile(true);
-                default: return Missing();
+                case "rider": return Rider();
+                case "zzz": return Zzz();
+                case "arrow": return ArrowArt();
+                case "feather": return Feather();
+                case "poop": return Poop();
+                case "grass_tuft": return GrassTuft();
+                case "footprint": return Footprint();
+                case "mud": return Mud();
+                case "mushroom": return Mushroom();
+                case "spring": return Spring();
+                case "fruit_energy": return Fruit("#F2C14E", "#B78C35");
+                case "fruit_life": return Fruit("#E05A47", "#8E2F24");
+                case "rope_prompt": return Rope();
             }
+            // Placeholder dinosaurs: same body, per-species palette + accessory.
+            if (name.StartsWith("enemy_") || name.StartsWith("mount_"))
+                return GenDino(name);
+            return Missing();
         }
 
         // ------------------------------------------------------------- characters
@@ -341,6 +361,377 @@ namespace DinoImpact
             c.Ellipse(14f, 7f, 13f, 6.2f, outer);
             c.Ellipse(14f, 7f, 11f, 4.8f, inner);
             return c.ToSprite("shadow", 18f, new Vector2(.5f, .5f));
+        }
+
+        // ------------------------------------------- design-doc entities (placeholders)
+        //
+        // Every dinosaur in 1.2.6/1.2.7 reuses one base body with a species
+        // palette + one silhouette accessory. This is deliberately rough: real
+        // pixel art drops in later as Assets/Resources/Dino/<name>.png.
+
+        enum Feature { None, Horns, Crest, Plates, BigJaw, Feathers, Wings }
+
+        struct Palette
+        {
+            public Color32 outline, dark, body, light, belly, plate, plateDark;
+        }
+
+        static Palette Pal(string outline, string dark, string body, string light, string belly, string plate)
+        {
+            return new Palette
+            {
+                outline = Hex(outline), dark = Hex(dark), body = Hex(body),
+                light = Hex(light), belly = Hex(belly), plate = Hex(plate),
+                plateDark = Hex("#00000055"),
+            };
+        }
+
+        /// <summary>Parses mount_&lt;sp&gt;_run0/run1/sleep and enemy_&lt;sp&gt; names.</summary>
+        static Sprite GenDino(string name)
+        {
+            bool isMount = name.StartsWith("mount_");
+            string rest = name.Substring(isMount ? 6 : 6);
+            string sp = rest;
+            int frame = 0;
+            bool sleeping = false;
+            float ppu = 22f;
+            Feature feat = Feature.None;
+
+            if (isMount)
+            {
+                if (rest.EndsWith("_run0")) { sp = rest.Substring(0, rest.Length - 5); frame = 1; }
+                else if (rest.EndsWith("_run1")) { sp = rest.Substring(0, rest.Length - 5); frame = 2; }
+                else if (rest.EndsWith("_sleep")) { sp = rest.Substring(0, rest.Length - 6); sleeping = true; }
+            }
+
+            Palette p;
+            switch (sp)
+            {
+                case "comps": p = Pal("#3A2F1E", "#8A6A42", "#B08B58", "#D2AC77", "#EAD4A8", "#6B4F2C"); ppu = 30; feat = Feature.None; break;
+                case "trike": p = Pal("#2A2013", "#7A5533", "#9C6F42", "#C08F55", "#E4C48C", "#EAD4A8"); ppu = 18; feat = Feature.Horns; break;
+                case "ankylo": p = Pal("#1C2A14", "#4F6134", "#6B7F45", "#8FA35E", "#C8CE96", "#E9E2A8"); ppu = 17; feat = Feature.Plates; break;
+                case "trex": p = Pal("#2B1410", "#7E3325", "#A54A35", "#C86B4E", "#E9A97F", "#5A2418"); ppu = isMount ? 20 : 14; feat = Feature.BigJaw; break;
+                case "dein": p = Pal("#14281F", "#2F6B52", "#3F8F6B", "#63B78C", "#A8DCC0", "#F2C14E"); ppu = 24; feat = Feature.Feathers; break;
+                case "para": p = Pal("#241A28", "#5E4A66", "#7E6688", "#A286AC", "#D8C0DD", "#F2C14E"); ppu = 18; feat = Feature.Crest; break;
+                case "pter": p = Pal("#20140A", "#66503A", "#8A6E50", "#B49A72", "#E2CFAE", "#3A2A1A"); ppu = 22; feat = Feature.Wings; break;
+                case "para_baby": p = Pal("#243A1E", "#5C8A3F", "#79B052", "#A5D279", "#E0F2B8", "#5C8A3F"); ppu = 40; break;
+                default: p = Pal("#19351C", "#326A2B", "#4F943A", "#79C052", "#B7DF7C", "#F0CF6B"); break;
+            }
+            if (sp == "comps" || sp == "dein") ppu = isMount ? ppu : ppu * .9f;
+            if (sp == "sauropod") return Sauropod();
+            if (sp == "pter" && !isMount) return PteroSilhouette();
+
+            return DinoBody(frame, p, feat, sleeping, ppu, name);
+        }
+
+        /// <summary>The base runner body, recoloured per species.</summary>
+        static Sprite DinoBody(int frame, Palette p, Feature feat, bool sleeping, float ppu, string name)
+        {
+            var c = new Canvas(32, 40);
+            Color32 eye = Hex("#F5FFE8"), pupil = Hex("#12200F"), claw = Hex("#EFE0A2");
+
+            for (int i = 0; i < 11; i++)
+            {
+                float t = i / 10f;
+                float tx = 14f - t * 12.5f, ty = 11f - t * 8.5f, r = 4.2f * (1f - t) + 1.1f;
+                c.Ellipse(tx, ty, r, r, p.outline);
+            }
+            for (int i = 0; i < 11; i++)
+            {
+                float t = i / 10f;
+                float tx = 14f - t * 12.5f, ty = 11f - t * 8.5f, r = 3.2f * (1f - t) + .6f;
+                c.Ellipse(tx, ty, r, r, p.body);
+            }
+
+            int leftLift = frame == 1 ? 2 : 0, rightLift = frame == 2 ? 2 : 0;
+            DrawLeg(c, 9, 2 + leftLift, p.outline, p.body, p.light, claw);
+            DrawLeg(c, 20, 2 + rightLift, p.outline, p.body, p.light, claw);
+
+            if (feat == Feature.Wings)
+            {
+                c.Triangle(16, 24, -2, 30, 6, 12, p.outline);
+                c.Triangle(16, 24, 34, 30, 26, 12, p.outline);
+                c.Triangle(16, 23.5f, 0, 28.5f, 6, 13, p.dark);
+                c.Triangle(16, 23.5f, 32, 28.5f, 26, 13, p.dark);
+            }
+
+            c.Ellipse(16f, 18f, 10.5f, 11.5f, p.outline);
+            c.Ellipse(16f, 18f, 9.6f, 10.6f, p.dark);
+            c.Ellipse(15.2f, 19f, 7.4f, 8.6f, p.body);
+            c.Ellipse(12.8f, 21.5f, 3.6f, 5.2f, p.light);
+            c.Ellipse(18.5f, 14f, 4.6f, 3.4f, p.belly);
+
+            c.Ellipse(6.5f, 20f, 3.4f, 2.6f, p.outline);
+            c.Ellipse(6.8f, 20f, 2.7f, 1.9f, p.body);
+            c.Ellipse(25.5f, 20f, 3.4f, 2.6f, p.outline);
+            c.Ellipse(25.2f, 20f, 2.7f, 1.9f, p.body);
+
+            DrawPlate(c, 16, 23.5f, 4.6f, p.plate, p.plateDark, p.outline);
+            DrawPlate(c, 16, 18.5f, 4.0f, p.plate, p.plateDark, p.outline);
+            if (feat == Feature.Plates)
+            {
+                DrawPlate(c, 9, 21, 2.6f, p.plate, p.plateDark, p.outline);
+                DrawPlate(c, 23, 21, 2.6f, p.plate, p.plateDark, p.outline);
+                DrawPlate(c, 8, 15, 2.2f, p.plate, p.plateDark, p.outline);
+                DrawPlate(c, 24, 15, 2.2f, p.plate, p.plateDark, p.outline);
+            }
+
+            c.Ellipse(16f, 27.5f, 5.2f, 6.2f, p.outline);
+            c.Ellipse(16f, 28.2f, 4.4f, 5.3f, p.body);
+            float headR = feat == Feature.BigJaw ? 7.2f : 6.6f;
+            c.Ellipse(16f, 33f, headR, 6.4f, p.outline);
+            c.Ellipse(16f, 33.4f, headR - .8f, 5.6f, p.body);
+            c.Ellipse(13.5f, 35f, 2.8f, 2.2f, p.light);
+
+            if (sleeping)
+            {
+                c.Line(12, 34, 15, 34, 1, pupil);
+                c.Line(17, 34, 20, 34, 1, pupil);
+            }
+            else
+            {
+                c.Ellipse(13.5f, 34.2f, 1.7f, 2.0f, eye);
+                c.Ellipse(18.5f, 34.2f, 1.7f, 2.0f, eye);
+                c.Ellipse(13.5f, 34.2f, .8f, 1.0f, pupil);
+                c.Ellipse(18.5f, 34.2f, .8f, 1.0f, pupil);
+            }
+
+            c.Ellipse(16f, 37.8f, feat == Feature.BigJaw ? 4.6f : 4.0f, 1.8f, p.outline);
+            c.Ellipse(16f, 38f, feat == Feature.BigJaw ? 3.8f : 3.2f, 1.3f, p.dark);
+            if (feat == Feature.BigJaw)
+            {
+                c.Triangle(13, 37, 14.5f, 35, 12, 35, claw);
+                c.Triangle(19, 37, 17.5f, 35, 20, 35, claw);
+            }
+            else
+            {
+                c.Rect(13, 36, 2, 1, claw);
+                c.Rect(17, 36, 2, 1, claw);
+            }
+
+            if (feat == Feature.Horns)
+            {
+                c.Triangle(16, 40, 15, 36, 17, 36, Hex("#EFE0A2"));
+                c.Triangle(11, 38, 12, 35, 13.5f, 36.5f, Hex("#EFE0A2"));
+                c.Triangle(21, 38, 20, 35, 18.5f, 36.5f, Hex("#EFE0A2"));
+            }
+            if (feat == Feature.Crest)
+            {
+                c.Triangle(16, 41, 12, 35, 20, 35, p.plate);
+                c.Triangle(16, 40, 13, 35.5f, 19, 35.5f, p.dark);
+            }
+            if (feat == Feature.Feathers)
+            {
+                c.Triangle(6, 24, 3, 28, 8, 27, p.light);
+                c.Triangle(26, 24, 29, 28, 24, 27, p.light);
+                c.Triangle(4, 6, 1, 10, 7, 9, p.light);
+                c.Triangle(28, 6, 31, 10, 25, 9, p.light);
+            }
+
+            return c.ToSprite(name, ppu, new Vector2(.5f, .14f));
+        }
+
+        /// <summary>Huge striding legs only — the player sees the lower half.</summary>
+        static Sprite Sauropod()
+        {
+            var c = new Canvas(64, 96);
+            Color32 outline = Hex("#241A10"), pillar = Hex("#6E5A40"), lit = Hex("#93795A"), toe = Hex("#E0D2AE");
+            for (int i = 0; i < 2; i++)
+            {
+                float x = 18 + i * 28;
+                c.Rect(x - 8, 2, 16, 86, outline);
+                c.Rect(x - 6, 4, 12, 82, pillar);
+                c.Rect(x - 6, 4, 4, 82, lit);
+                c.Ellipse(x, 4f, 8f, 4f, outline);
+                c.Rect(x - 5, 1, 3, 2, toe);
+                c.Rect(x + 2, 1, 3, 2, toe);
+            }
+            c.Ellipse(32f, 90f, 26f, 12f, outline);
+            c.Ellipse(32f, 91f, 23f, 9f, pillar);
+            return c.ToSprite("enemy_sauropod", 26f, new Vector2(.5f, .1f));
+        }
+
+        /// <summary>Dark gliding silhouette for the pteranodon fly-over.</summary>
+        static Sprite PteroSilhouette()
+        {
+            var c = new Canvas(48, 24);
+            Color32 dark = new Color32(24, 20, 14, 220);
+            Color32 edge = Hex("#0C0A06");
+            c.Triangle(24, 16, 2, 22, 10, 4, edge);
+            c.Triangle(24, 16, 46, 22, 38, 4, edge);
+            c.Triangle(24, 15, 5, 21, 11, 6, dark);
+            c.Triangle(24, 15, 43, 21, 37, 6, dark);
+            c.Ellipse(24f, 12f, 6f, 4f, edge);
+            c.Ellipse(24f, 12f, 5f, 3f, dark);
+            c.Triangle(30, 13, 38, 15, 30, 10, edge);
+            return c.ToSprite("enemy_ptero", 20f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Rider()
+        {
+            var c = new Canvas(16, 20);
+            Color32 outline = Hex("#2A1C10"), skin = Hex("#C89A6B"), tunic = Hex("#7A4A2A"),
+                      hair = Hex("#3A2412"), strap = Hex("#4E3320");
+            c.Ellipse(8f, 14f, 4.6f, 4.6f, outline);      // head
+            c.Ellipse(8f, 14f, 3.8f, 3.8f, skin);
+            c.Ellipse(8f, 16.4f, 4.0f, 2.6f, hair);       // hair cap
+            c.Rect(5, 12, 1, 1, outline); c.Rect(10, 12, 1, 1, outline); // eyes
+            c.Ellipse(8f, 6.5f, 4.6f, 6.0f, outline);     // torso
+            c.Ellipse(8f, 6.5f, 3.8f, 5.2f, tunic);
+            c.Rect(6, 9, 4, 2, strap);
+            c.Ellipse(4f, 8f, 1.6f, 3f, outline); c.Ellipse(4f, 8f, 1.1f, 2.5f, skin);
+            c.Ellipse(12f, 8f, 1.6f, 3f, outline); c.Ellipse(12f, 8f, 1.1f, 2.5f, skin);
+            c.Rect(5, 0, 2, 5, outline); c.Rect(9, 0, 2, 5, outline);  // legs
+            return c.ToSprite("rider", 30f, new Vector2(.5f, .1f));
+        }
+
+        static Sprite Zzz()
+        {
+            var c = new Canvas(16, 16);
+            Color32 ink = new Color32(247, 241, 216, 210);
+            // two little Zs
+            void Z(int ox, int oy, int s)
+            {
+                c.Rect(ox, oy + 2 * s, 3 * s, s, ink);
+                c.Rect(ox + 2 * s, oy + s, s, s, ink);
+                c.Rect(ox + s, oy, s, s, ink);
+                c.Rect(ox, oy, s, s, ink);
+                c.Rect(ox + 2 * s, oy, s, s, ink);
+            }
+            Z(2, 7, 2);
+            Z(9, 1, 2);
+            return c.ToSprite("zzz", 22f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite ArrowArt()
+        {
+            var c = new Canvas(18, 6);
+            Color32 shaft = Hex("#8A6A42"), head = Hex("#D8D8D8"), fletch = Hex("#E05A47");
+            c.Rect(1, 2, 13, 2, shaft);
+            c.Triangle(17, 3, 12, 0, 12, 6, head);
+            c.Rect(1, 0, 2, 2, fletch);
+            c.Rect(1, 4, 2, 2, fletch);
+            return c.ToSprite("arrow", 26f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Feather()
+        {
+            var c = new Canvas(10, 14);
+            Color32 quill = Hex("#EFE0A2"), vane = Hex("#63B78C"), edge = Hex("#14281F");
+            c.Ellipse(5f, 7f, 3.6f, 6.4f, edge);
+            c.Ellipse(5f, 7f, 2.8f, 5.6f, vane);
+            c.Rect(4, 1, 2, 10, quill);
+            return c.ToSprite("feather", 22f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Poop()
+        {
+            var c = new Canvas(16, 16);
+            Color32 dark = Hex("#3E2A14"), mid = Hex("#5A3E20"), light = Hex("#755430");
+            c.Ellipse(8f, 4f, 5.6f, 3.4f, dark);
+            c.Ellipse(8f, 4f, 4.6f, 2.6f, mid);
+            c.Ellipse(8f, 8f, 4f, 3f, dark);
+            c.Ellipse(8f, 8f, 3f, 2.2f, light);
+            c.Ellipse(8f, 11.5f, 2.6f, 2.2f, dark);
+            c.Ellipse(8f, 11.5f, 1.8f, 1.5f, mid);
+            return c.ToSprite("poop", 20f, new Vector2(.5f, .3f));
+        }
+
+        static Sprite GrassTuft()
+        {
+            var c = new Canvas(20, 16);
+            Color32 dark = Hex("#2F6428"), mid = Hex("#4A8A38"), light = Hex("#6FB052");
+            for (int i = 0; i < 5; i++)
+            {
+                int x = 2 + i * 4;
+                Color32 col = i % 2 == 0 ? mid : light;
+                c.Line(x, 1, x + (i - 2), 12 + (i % 2) * 2, 1, dark);
+                c.Line(x, 2, x + (i - 2), 11 + (i % 2) * 2, 1, col);
+            }
+            return c.ToSprite("grass_tuft", 20f, new Vector2(.5f, .2f));
+        }
+
+        static Sprite Footprint()
+        {
+            var c = new Canvas(20, 26);
+            Color32 pit = Hex("#315B26"), rim = Hex("#22401A"), pad = Hex("#1C3517");
+            c.Ellipse(10f, 8f, 5.5f, 5.5f, rim);
+            c.Ellipse(10f, 8f, 4.6f, 4.6f, pit);
+            for (int i = 0; i < 3; i++)
+            {
+                float a = (i - 1) * .7f - 1.5708f;
+                float tx = 10 + Mathf.Cos(a) * 9f, ty = 17 + Mathf.Sin(a) * 7f;
+                c.Ellipse(tx, ty, 2.6f, 3.4f, rim);
+                c.Ellipse(tx, ty, 1.9f, 2.6f, pad);
+            }
+            return c.ToSprite("footprint", 20f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Mud()
+        {
+            var c = new Canvas(28, 18);
+            Color32 edge = Hex("#2E1D0D"), dark = Hex("#4A3018"), mid = Hex("#5F4322"), bub = Hex("#7A5A32");
+            c.Ellipse(14f, 8f, 13.5f, 8f, edge);
+            c.Ellipse(14f, 8f, 12f, 6.8f, dark);
+            c.Ellipse(12f, 9f, 8f, 4.2f, mid);
+            c.Ellipse(6f, 6f, 1.8f, 1.2f, bub);
+            c.Ellipse(18f, 10f, 1.5f, 1f, bub);
+            c.Ellipse(22f, 6f, 1.2f, .9f, bub);
+            return c.ToSprite("mud", 18f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Mushroom()
+        {
+            var c = new Canvas(20, 20);
+            Color32 outline = Hex("#3A2030"), cap = Hex("#C4507A"), capD = Hex("#8E2F5A"),
+                      stem = Hex("#EFE6D0"), spot = Hex("#F7F1D8");
+            c.Ellipse(10f, 12f, 8.5f, 6f, outline);
+            c.Ellipse(10f, 12.5f, 7.5f, 5f, cap);
+            c.Ellipse(10f, 9f, 7f, 3f, capD);
+            c.Rect(8, 1, 4, 8, outline);
+            c.Rect(9, 1, 2, 7, stem);
+            c.Ellipse(7f, 14f, 1.3f, 1f, spot);
+            c.Ellipse(13f, 12.5f, 1f, .8f, spot);
+            c.Ellipse(10f, 15.5f, .9f, .7f, spot);
+            return c.ToSprite("mushroom", 20f, new Vector2(.5f, .25f));
+        }
+
+        static Sprite Spring()
+        {
+            var c = new Canvas(18, 22);
+            Color32 coil = Hex("#B08B58"), pad = Hex("#6FB052"), edge = Hex("#2E1D0D");
+            c.Rect(7, 0, 4, 10, edge);
+            c.Rect(8, 0, 2, 10, coil);
+            c.Rect(5, 2, 8, 2, edge);
+            c.Rect(6, 4, 6, 1, coil);
+            c.Rect(5, 6, 8, 2, edge);
+            c.Ellipse(9f, 14f, 5f, 2.4f, edge);
+            c.Ellipse(9f, 14.5f, 4.2f, 1.8f, pad);
+            c.Ellipse(9f, 17f, 3f, 1.2f, Hex("#9BD65A"));
+            return c.ToSprite("spring", 20f, new Vector2(.5f, .2f));
+        }
+
+        static Sprite Fruit(string col, string colDark)
+        {
+            var c = new Canvas(14, 16);
+            Color32 body = Hex(col), dark = Hex(colDark), leaf = Hex("#4A8A38"), shine = Hex("#FFFBE0");
+            c.Ellipse(7f, 6f, 5.8f, 5.8f, Hex("#22301A"));
+            c.Ellipse(7f, 6f, 5f, 5f, body);
+            c.Ellipse(8.6f, 4.4f, 2.4f, 2.4f, dark);
+            c.Ellipse(5f, 8f, 1.6f, 1.2f, shine);
+            c.Rect(6, 11, 2, 3, Hex("#5A3A1E"));
+            c.Ellipse(10f, 13.5f, 2.6f, 1.4f, leaf);
+            return c.ToSprite("fruit", 18f, new Vector2(.5f, .5f));
+        }
+
+        static Sprite Rope()
+        {
+            var c = new Canvas(18, 18);
+            Color32 rope = Hex("#D8B26A"), knot = Hex("#8A6A42");
+            c.Ellipse(9f, 9f, 7f, 7f, rope);
+            c.Ellipse(9f, 9f, 4.6f, 4.6f, new Color32(0, 0, 0, 0));
+            c.Rect(7, 0, 4, 4, knot);
+            return c.ToSprite("rope_prompt", 20f, new Vector2(.5f, .5f));
         }
 
         // ------------------------------------------------------------------ ground

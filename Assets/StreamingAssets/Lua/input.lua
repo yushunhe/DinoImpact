@@ -33,6 +33,11 @@ function I.number(n)
     return get(key, function() return Host.input.number(n) end)
 end
 
+-- discrete gameplay keys (design doc: S shoot, J mount, Space skill)
+function I.shoot() return get("shoot", function() return Host.input.shoot() end) end
+function I.mount() return get("mount", function() return Host.input.mount() end) end
+function I.skill() return get("skill", function() return Host.input.skill() end) end
+
 function I.setOverride(t)
     I.override = t
 end
