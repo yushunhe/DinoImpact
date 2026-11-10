@@ -251,7 +251,7 @@ function Dino.update(dt, P, T)
         local e = Dino.enemies[i]
         e.t = e.t + dt
         local gone = e.y < cull or e.y > P.y + Config.spawn.ahead + 16
-            or math.abs(e.x - P.x) > 24
+            or math.abs(e.x - P.x) > Config.world.cullX
 
         if e.walk then
             -- sauropod legs crossing the plain

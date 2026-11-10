@@ -273,9 +273,11 @@ local hpP2 = P.hp
 Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
 check(P.hp == hpP2 - 1, "with no chicks left the rider is hurt")
 
-io.write("lane-aware spawning\n")
--- eggs only: obstacle rows also follow the predicted line, and a player who
--- never weaves would get pinned against one - that is not what we check here
+io.write("endless sideways + spawns follow the heading\n")
+-- no air walls anywhere: the player may run arbitrarily far from x = 0,
+-- and egg/obstacle rows anchor on the predicted path wherever they are.
+-- (eggs only here: obstacle rows also follow the line, and a player who
+-- never weaves would get pinned against one - not what we check here)
 local function startEggField()
     startFresh()
     Game.debugEnableSpawning("eggs")
@@ -283,16 +285,21 @@ end
 startEggField()
 step(.05, { right = true }); step(.05, { right = true })   -- heading 右
 resumeSteps(150, { right = true })
-check(P.x <= Config.spawn.laneHalf + 2.01, "player clamped to the lane edge")
-check(P.x > 10, "holding 右 actually reaches the edge (x=" .. string.format("%.1f", P.x) .. ")")
-local wide = 0
+check(P.x > 25, "no air walls: holding 右 walks arbitrarily far out (x=" .. string.format("%.1f", P.x) .. ")")
+-- rows must sit on the heading's path (lateral deviation vs the diagonal),
+-- not merely "near x" - on a sustained 右 run the path itself is far out
+local tanNow = math.tan(Config.heading.angleDeg[P.heading] * math.pi / 180)
+local near = 0
 for _, it in ipairs(T.items) do
-    if it.y > P.y and it.x > 6 then wide = wide + 1 end
+    local dy = it.y - P.y
+    if dy > 0 and dy < 30 and math.abs(it.x - (P.x + tanNow * dy)) < 8 then
+        near = near + 1
+    end
 end
-check(wide > 0, "spawns follow the heading: " .. wide .. " items ahead out wide")
-local eggsWide = P.eggs
+check(near > 0, "supplies follow you into the middle of nowhere: " .. near .. " items on-path ahead")
+local eggsFar = P.eggs
 resumeSteps(300, { right = true })
-check(P.eggs - eggsWide >= 5, "still collecting eggs while hugging the edge (" .. (P.eggs - eggsWide) .. ")")
+check(P.eggs - eggsFar >= 5, "still collecting eggs far off-center (" .. (P.eggs - eggsFar) .. ")")
 startEggField()
 local eggsCenter = P.eggs
 resumeSteps(250)
@@ -324,8 +331,11 @@ math.randomseed(7)
 local maxEnts, sawEnemy, sawMount, eggsTotal = 0, false, false, 0
 for i = 1, 2400 do
     P.hp = 99   -- survive blocking hits so the sim keeps running
-    if i % 90 == 0 then step(.05, { left = true }) end
-    if i % 90 == 45 then step(.05, { right = true }) end
+    -- gentle meander like a real player: lean one way, recenter, lean back
+    if i % 200 == 0 then step(.05, { right = true }) end
+    if i % 200 == 40 then step(.05, { up = true }) end
+    if i % 200 == 100 then step(.05, { left = true }) end
+    if i % 200 == 140 then step(.05, { up = true }) end
     if i % 200 == 0 then step(.05, { shoot = true }) end
     if Game.state ~= "playing" then eggsTotal = eggsTotal + P.eggs; startLive() end
     if P.stunned then step(.05, { up = true }) else step(.05) end

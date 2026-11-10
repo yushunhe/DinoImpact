@@ -70,7 +70,7 @@ C.camera = {
 C.world = {
     decorCell = 6,
     decorRadius = 5,
-    cullX = 22,
+    cullX = 44,        -- sideways existence cull (relative to the player)
     cullBack = 20,     -- behind the player
     cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity
 }
@@ -96,14 +96,16 @@ C.spawn = {
     obstacleGapMax = 17,
     eggGapMin = 7,
     eggGapMax = 13,
-    ahead = 46,
+    ahead = 30,            -- how far ahead rows are placed (~5 s of travel)
+    anchorLimit = 36,      -- a row's anchor never sits further than this from
+                           -- the player sideways (>= tan 48deg * ahead, so the
+                           -- steepest heading still lands exactly on-path)
     eggValue = 25,
     killValue = 60,
     mountValue = 120,
     fruitChance = .14,     -- an egg row becomes a guarded fruit instead
     sleepChance = .10,     -- an obstacle row becomes a sleeping mount dinosaur
     enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
-    laneHalf = 13,         -- playable corridor: spawns anchor inside it
 }
 
 -- player body / animation

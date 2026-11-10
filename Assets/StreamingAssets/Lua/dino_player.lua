@@ -70,15 +70,16 @@ function P.speed()
     return currentSpeed()
 end
 
--- Predicted x when the world ahead reaches distance y: project along the
--- current heading (dampened - the player can still steer) and clamp to the
--- spawn lane. The track / enemy directors anchor rows on this so eggs and
--- obstacles appear where the player is heading, not where they used to be.
+-- Predicted x when the world ahead reaches distance y: project exactly along
+-- the current heading, but never anchor a row more than anchorLimit sideways
+-- from the player (so it stays inside the existence-cull band and reachable
+-- by the time the player gets there). No walls anywhere: this only bounds
+-- where content spawns relative to you, not where you can walk.
 function P:futureX(y)
     local tan = math.tan(headingAngle() * U.rad)
-    local x = P.x + tan * math.max(0, y - P.y) * .85
-    local lim = Config.spawn.laneHalf + 1   -- keeps wall-hugging runs supplied
-    return U.clamp(x, -lim, lim)
+    local lim = Config.spawn.anchorLimit
+    local x = P.x + tan * math.max(0, y - P.y)
+    return U.clamp(x, P.x - lim, P.x + lim)
 end
 
 -- ------------------------------------------------------------------ camera
@@ -321,8 +322,6 @@ function P.update(dt)
     P.x = P.x + speed * math.sin(a) * dt
     P.y = P.y + speed * math.cos(a) * dt
     if P.y < 0 then P.y = 0 end
-    local lane = Config.spawn.laneHalf + 2   -- a bit wider than the spawn lane
-    if P.x > lane then P.x = lane elseif P.x < -lane then P.x = -lane end
     P.distance = P.distance + speed * dt
 
     -- animation (frozen while stunned)
