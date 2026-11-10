@@ -538,7 +538,7 @@ namespace DinoImpact
             Color32 outline = Hex("#241A10"), pillar = Hex("#6E5A40"), lit = Hex("#93795A"), toe = Hex("#E0D2AE");
             for (int i = 0; i < 2; i++)
             {
-                float x = 18 + i * 28;
+                int x = 18 + i * 28;
                 c.Rect(x - 8, 2, 16, 86, outline);
                 c.Rect(x - 6, 4, 12, 82, pillar);
                 c.Rect(x - 6, 4, 4, 82, lit);
