@@ -15,8 +15,11 @@ local W = {
     cells = {},
 }
 
-local BIG = { "tree", "tree", "fern", "bush", "rock_small" }
-local DETAIL = { "pebble", "flower", "pebble", "fern" }
+-- PlantsPixelIt 素材：树蕨/扇叶树/苏铁当大目标，其余新植被撒作细节
+-- （世界高度已在 DinoPixelArt.PlantUnits 里归一，缩放只是微调随机感）
+local BIG = { "tree", "tree", "palm", "cycad", "fern", "bush", "rock_small" }
+local DETAIL = { "pebble", "flower", "horsetail", "horsetail_cone", "crown",
+                 "crown_small", "clubmoss_small", "fern_frond", "fern" }
 
 -- Park-Miller LCG. Pure arithmetic so it behaves identically in Lua 5.2
 -- (MoonSharp) and 5.4, and each cell always rolls the same scenery.

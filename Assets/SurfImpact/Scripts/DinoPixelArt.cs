@@ -32,16 +32,47 @@ namespace DinoImpact
             if (name.StartsWith("dino_") || name.StartsWith("mount_") ||
                 name.StartsWith("enemy_") || name == "rider")
                 pivot = new Vector2(.5f, .14f);
-            else if (name == "tree" || name == "fern" || name == "bush" ||
-                     name == "rock" || name == "rock_small" || name == "log" ||
-                     name == "flower" || name == "pebble" ||
+            else if (name == "rock" || name == "rock_small" || name == "log" ||
+                     name == "pebble" ||
                      name == "grass_tuft" || name == "mud" || name == "footprint" ||
                      name == "mushroom" || name == "spring" || name == "poop")
                 pivot = new Vector2(.5f, .3f);
+            // PlantsPixelIt 素材（Assets/Resources/Dino/*.png 落地后自动替换程序版）：
+            // 世界高度按这张表归一（PPU 反推），锚点在底边中心=触地点。
+            else if (PlantUnits(name, out float units))
+            {
+                float ppu = raw.rect.height / units;
+                var plant = Sprite.Create(raw.texture, raw.rect,
+                    new Vector2(.5f, 0f), ppu, 0, SpriteMeshType.FullRect);
+                plant.name = name;
+                return plant;
+            }
             if (raw.pivot == pivot && raw.border == Vector4.zero) return raw;
             var sprite = Sprite.Create(raw.texture, raw.rect, pivot, raw.pixelsPerUnit, 0, SpriteMeshType.FullRect);
             sprite.name = name;
             return sprite;
+        }
+
+        // World-space height each plant PNG gets normalized to (units).
+        // tree ~1.5x the rider's dino; the rest scatter as plain detail.
+        static bool PlantUnits(string name, out float units)
+        {
+            switch (name)
+            {
+                case "tree":            units = 3.0f; return true;   // tree fern
+                case "palm":            units = 2.2f; return true;
+                case "bush":            units = 1.2f; return true;   // shrub
+                case "cycad":           units = 1.3f; return true;
+                case "fern":            units = 1.0f; return true;
+                case "fern_frond":      units = 0.9f; return true;
+                case "flower":          units = 0.9f; return true;   // clubmoss
+                case "clubmoss_small":  units = 0.6f; return true;
+                case "horsetail":       units = 1.2f; return true;
+                case "horsetail_cone":  units = 1.0f; return true;
+                case "crown":           units = 1.0f; return true;
+                case "crown_small":     units = 0.65f; return true;
+                default:                units = 0f;   return false;
+            }
         }
 
         static Sprite Build(string name)
@@ -235,23 +266,34 @@ namespace DinoImpact
 
         static Sprite Log()
         {
+            // Palette follows the PlantsPixelIt tree fern: bark browns like the
+            // trunk (#8B5A2B family), 1-px dark-green outline like every plant,
+            // moss dabs in the canopy greens - a fallen log that sits in this
+            // flora set ("地上的木头也参考这套素材").
             var c = new Canvas(32, 16);
-            Color32 outline = Hex("#2E1D0D");
-            Color32 dark = Hex("#5A3A1E");
-            Color32 mid = Hex("#805327");
-            Color32 light = Hex("#A8743D");
+            Color32 outline = Hex("#173318");
+            Color32 dark = Hex("#5B3B1E");
+            Color32 mid = Hex("#8B5A2B");
+            Color32 light = Hex("#B07A45");
             Color32 ring = Hex("#3E2812");
-            c.Ellipse(16f, 8f, 15f, 7f, outline);
-            c.Ellipse(16f, 8f, 14f, 6f, mid);
-            c.Rect(3, 3, 26, 9, mid);
-            c.Rect(3, 9, 26, 3, light);
-            c.Rect(3, 3, 26, 2, dark);
-            c.Ellipse(28f, 8f, 5f, 5.8f, outline);
-            c.Ellipse(28f, 8f, 4f, 4.8f, dark);
-            c.Ellipse(28f, 8f, 2.6f, 3.2f, mid);
-            c.Ellipse(28f, 8f, 1.2f, 1.6f, ring);
-            c.Line(7, 5, 20, 5, 1, dark);
-            c.Line(10, 11, 23, 11, 1, light);
+            Color32 moss = Hex("#477F32");
+            Color32 mossHi = Hex("#6DA84A");
+            c.Ellipse(16f, 9f, 15f, 7f, outline);
+            c.Ellipse(16f, 9f, 14f, 6f, mid);
+            c.Rect(3, 4, 26, 9, mid);
+            c.Rect(3, 10, 26, 3, light);
+            c.Rect(3, 4, 26, 2, dark);
+            c.Ellipse(28f, 9f, 5f, 5.8f, outline);
+            c.Ellipse(28f, 9f, 4f, 4.8f, dark);
+            c.Ellipse(28f, 9f, 2.6f, 3.2f, mid);
+            c.Ellipse(28f, 9f, 1.2f, 1.6f, ring);
+            c.Line(7, 6, 20, 6, 1, dark);
+            c.Line(10, 12, 23, 12, 1, light);
+            // moss caps along the top edge, hard-edged like the plant set
+            c.Ellipse(8f, 13f, 3.4f, 2f, moss);
+            c.Ellipse(17f, 13.5f, 2.6f, 1.6f, moss);
+            c.Ellipse(16f, 14f, 1.4f, .9f, mossHi);
+            c.Ellipse(24f, 13f, 2f, 1.3f, moss);
             return c.ToSprite("log", 20f, new Vector2(.5f, .3f));
         }
 
