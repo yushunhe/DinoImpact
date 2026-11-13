@@ -54,13 +54,14 @@ function T.addObstacle(kind, x, y)
     return addObstacle(kind, x, y)
 end
 
--- sleeping mount dinosaur (1.2.7): looks like an obstacle, J to swap onto it
+-- sleeping mount dinosaur (1.2.7): walks right past it - it never hurts the
+-- player (design change: 可换乘的恐龙不造成伤害); J within C.mount.range swaps.
 function T.addSleepDino(mountKey, x, y)
     local m = Data.mounts[mountKey]
     local id = Host.entity.new(m.sleep, x, y, 0)
     local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1, -.4)
     local it = {
-        type = "mount", kind = mountKey, class = "block", mount = true,
+        type = "mount", kind = mountKey, class = "mount", mount = true,
         x = x, y = y, radius = .95, id = id, zzz = zid, dead = false,
     }
     T.items[#T.items + 1] = it
@@ -151,6 +152,7 @@ end
 
 -- ------------------------------------------------------------------ collisions
 local function hitObstacle(it, P)
+    if it.mount then return end   -- 睡觉的恐龙：无害，径直路过（换乘走 J）
     if it.class == "block" then
         if P.chargeT > 0 then
             -- 三角龙/甲龙技能：撞飞阻拦型障碍
@@ -165,11 +167,6 @@ local function hitObstacle(it, P)
             fx.sound(Config.juice.hurtSound, .8)
             fx.event("impact", it.x, it.y, 1)
             fx.shake(Config.juice.hurtShake, .25)
-            if it.mount then
-                -- 撞上睡觉的恐龙：它惊醒跑掉（1.2.7）
-                it.dead = true
-                return
-            end
         end
         -- 无敌/受击期间仍与碰撞体保持接触：把玩家沿法线推出，
         -- 并把无敌延长到"本次碰撞判定结束"

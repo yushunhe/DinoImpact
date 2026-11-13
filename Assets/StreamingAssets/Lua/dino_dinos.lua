@@ -196,7 +196,9 @@ function Dino.spawnArrow(x, y, sx, sy)
     local a = Config.arrow
     add(Dino.shots, "arrow", x, y, a.radius, {
         sprite = Config.sprites.arrow, vx = sx * a.speed, vy = sy * a.speed,
-        life = a.life, rotZ = -math.atan2(sy, sx) * U.deg + 90,
+        -- 箭头是横着画的（默认指向 +x）：逆时针转到速度方向，
+        -- 飞行姿态与玩家偏转朝向一致
+        life = a.life, rotZ = math.atan2(sy, sx) * U.deg,
     })
 end
 

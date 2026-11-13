@@ -1,7 +1,8 @@
 -- DINO IMPACT - riding and dinosaur skills (design doc 1.2.7).
 --
--- Sleeping dinosaurs dot the plain (placed by dino_track). Getting close and
--- facing one shows the rope prompt; J leaps onto it: the new dinosaur bolts
+-- Sleeping dinosaurs dot the plain (placed by dino_track). They never hurt
+-- the player - walking into one just passes it. Entering C.mount.range shows
+-- the rope prompt from any direction; J leaps onto it: the new dinosaur bolts
 -- forward, the old one is left standing in place until it leaves the view.
 -- Space fires the current dinosaur's skill (uses reset by energy fruit or by
 -- mounting another dinosaur).
@@ -133,20 +134,18 @@ end
 
 -- ------------------------------------------------------------------ update
 function M.update(dt, P, T)
-    -- rope prompt: close enough and roughly facing the sleeping dinosaur
+    -- rope prompt: pure proximity (设计调整) - within C.mount.range the
+    -- nearest sleeping dinosaur is mountable, from any heading, even behind.
     M.prompt = nil
     if P.alive then
-        local near = T.findMountsNear(P.x, P.y, 3.2)
+        local near = T.findMountsNear(P.x, P.y, Config.mount.range)
+        local best, bestD = nil, nil
         for i = 1, #near do
             local it = near[i]
-            local dx = it.x - P.x
-            local facing = (P.heading < 0 and dx < 0) or (P.heading > 0 and dx > 0)
-                or (P.heading == 0 and math.abs(dx) < 1.6)
-            if facing and it.y > P.y - .5 then
-                M.prompt = it
-                break
-            end
+            local d = U.dist2(it.x, it.y, P.x, P.y)
+            if not bestD or d < bestD then best, bestD = it, d end
         end
+        M.prompt = best
     end
 
     -- J: mount

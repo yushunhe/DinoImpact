@@ -108,6 +108,12 @@ C.spawn = {
     enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
 }
 
+-- 换乘判定（1.2.7 调整版）：睡觉恐龙不伤害玩家；进入 range 即出绳索提示，
+-- 按 J 就能换（不看朝向，也没有"必须正对"的判定）。
+C.mount = {
+    range = 4.0,
+}
+
 -- player body / animation
 C.player = {
     radius = .55,

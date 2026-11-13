@@ -140,6 +140,13 @@ check(P.arrows == 0, "cannot fire below zero stored arrows")
 steps(30, .05)
 check(P.arrows >= 1, "arrows recharge after the cooldown")
 
+io.write("arrow flight matches the heading (箭头朝向=玩家偏转方向)\n")
+startFresh()
+step(.05, { shoot = true })
+check(math.abs(D.shots[#D.shots].rotZ - 90) < .01, "直行射击：箭尖指向前方（屏幕上方）")
+step(.05, { right = true, shoot = true })   -- 微右 = +20°，箭应同步右倾
+check(math.abs(D.shots[#D.shots].rotZ - 70) < .01, "偏右射击：箭尖沿当前朝向偏转")
+
 io.write("shooting dinos (1.2.6)\n")
 -- keep exactly one enemy on the field: events may roll lone stragglers or
 -- full packs/walls, and leftover bodies would muddy the counts
@@ -302,6 +309,22 @@ steps(20, .05)   -- heading stays 中
 check(rex and rex.steerT > .8, "保持方向不变：暴龙加速计时累积")
 step(.05, { right = true })
 check(rex and rex.steerT < .2, "换档立刻重置追逐加速")
+
+io.write("sleeping mounts are harmless + proximity-only mounting\n")
+startFresh()
+local hpS = P.hp
+local sleepy = Game.debugSpawnMount("trike", P.x, P.y)   -- right on top of us
+steps(4, .05)
+check(P.hp == hpS, "撞睡觉恐龙不掉血（径直路过）")
+check(M.prompt == sleepy, "重合时仍出绳索提示，按 J 能换")
+-- mount from directly behind, heading 中: old facing rule is gone
+startFresh()
+Game.debugSpawnMount("pter", P.x, P.y - 3)
+steps(1, .05)
+check(M.prompt ~= nil, "背后 3 格也出提示（只看距离，不看朝向）")
+local mountsS = M.mountCount
+step(.05, { mount = true })
+check(M.current.key == "pter" and M.mountCount == mountsS + 1, "进圈按 J 即换乘")
 
 io.write("feather fan = one arrow of damage, not instant kill (1.2.7)\n")
 startFresh()
