@@ -130,6 +130,7 @@ C.sprites = {
     arrow = "arrow",
     zzz = "zzz",
     rope = "rope_prompt",
+    ring = "mount_ring",  -- 睡觉龙脚下的换乘范围圈（反馈1）
 }
 
 return C

@@ -121,23 +121,33 @@ end
 
 function UI.init()
     -- HUD -------------------------------------------------------------------
-    -- hearts (design doc 1.2.2) - placeholder art: text hearts, replaceable
-    Host.ui.label("hud_hearts", "", .035, .062, 30, C.heart, "left")
-    Host.ui.label("hud_distance", "0 m", .035, .115, 24, C.white, "left")
-    Host.ui.label("hud_eggs", "EGGS 0", .035, .162, 20, C.accent, "left")
-    Host.ui.label("hud_kills", "KILLS 0", .035, .205, 20, C.accent2, "left")
-    Host.ui.label("hud_mounts", "MOUNTS 0", .035, .248, 20, C.gold, "left")
-    -- right side: arrows + current mount (portrait placeholder = its name)
-    Host.ui.label("hud_arrows", "", .965, .062, 26, C.white, "right")
-    Host.ui.label("hud_mount", "", .965, .115, 22, C.accent2, "right")
-    Host.ui.label("hud_uses", "", .965, .158, 22, C.accent, "right")
-    -- centre-top: mount prompt (1.2.7)
-    Host.ui.label("hud_prompt", "", .5, .06, 26, C.buttonHi, "center")
+    -- 排布照 1113 反馈末页"游戏界面"草图：三心顶部居中；左列四块数据牌
+    -- （距离/蛋/击杀/驾驭）；右上箭支牌；右侧骑乘徽记（头像位+技能次数）。
+    -- 草图里的图标先以文字牌占位，真实图标美术后续替换。
+    local function tile(name, x, y, w, h) Host.ui.panel(name, x, y, w, h, C.panel) end
+    Host.ui.label("hud_hearts", "", .5, .055, 34, C.heart, "center")
+    tile("hud_t_distance", .085, .185, 230, 62)
+    tile("hud_t_eggs",     .085, .265, 230, 62)
+    tile("hud_t_kills",    .085, .345, 230, 62)
+    tile("hud_t_mounts",   .085, .425, 230, 62)
+    Host.ui.label("hud_distance", "0 m", .085, .185, 24, C.white, "center")
+    Host.ui.label("hud_eggs", "EGGS 0", .085, .265, 20, C.accent, "center")
+    Host.ui.label("hud_kills", "KILLS 0", .085, .345, 20, C.accent2, "center")
+    Host.ui.label("hud_mounts", "MOUNTS 0", .085, .425, 20, C.gold, "center")
+    tile("hud_t_arrows", .915, .185, 230, 62)
+    tile("hud_t_mount",  .915, .318, 230, 132)
+    Host.ui.label("hud_arrows", "", .915, .185, 26, C.white, "center")
+    Host.ui.label("hud_mount", "", .915, .288, 22, C.accent2, "center")
+    Host.ui.label("hud_uses", "x0", .915, .352, 28, C.accent, "center")
+    -- mount prompt (1.2.7): just under the hearts, centre
+    Host.ui.label("hud_prompt", "", .5, .125, 26, C.buttonHi, "center")
     Host.ui.label("hud_hint", "A/D STEER   W CENTER   S STOP   J SHOOT   K MOUNT   SPACE SKILL", .5, .955, 16, C.muted, "center")
-    Host.ui.label("hud_toast", "", .5, .30, 40, C.accent, "center")
+    Host.ui.label("hud_toast", "", .5, .24, 40, C.accent, "center")
     UI.hudNames = {
         "hud_hearts", "hud_distance", "hud_eggs", "hud_kills", "hud_mounts",
         "hud_arrows", "hud_mount", "hud_uses", "hud_prompt", "hud_hint",
+        "hud_t_distance", "hud_t_eggs", "hud_t_kills", "hud_t_mounts",
+        "hud_t_arrows", "hud_t_mount",
     }
 
     -- Title -----------------------------------------------------------------

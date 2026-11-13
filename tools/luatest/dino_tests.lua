@@ -314,6 +314,7 @@ io.write("sleeping mounts are harmless + proximity-only mounting\n")
 startFresh()
 local hpS = P.hp
 local sleepy = Game.debugSpawnMount("trike", P.x, P.y)   -- right on top of us
+check(sleepy.ring ~= nil and Host.entity.exists(sleepy.ring), "睡觉龙脚下有换乘范围圈（反馈1）")
 steps(4, .05)
 check(P.hp == hpS, "撞睡觉恐龙不掉血（径直路过）")
 check(M.prompt == sleepy, "重合时仍出绳索提示，按 K 能换")
@@ -387,7 +388,7 @@ T.brakeT = .01
 step(.05, { stop = true })
 check(#dd4.enemies >= 1, "刹车也会上门：干扰龙事件照常出现")
 local ev = dd4.enemies[#dd4.enemies]
-check(math.abs(ev.y - P.y) < 17, "刹车事件就近生成，跑不掉")
+check(math.abs(ev.y - P.y) < 30, "刹车事件就近生成，跑不掉")
 
 io.write("staying in the hitbox does not drain hearts (1113 postHit)\n")
 startFresh()

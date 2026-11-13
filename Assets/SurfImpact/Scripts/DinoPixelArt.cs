@@ -76,6 +76,7 @@ namespace DinoImpact
                 case "fruit_energy": return Fruit("#F2C14E", "#B78C35");
                 case "fruit_life": return Fruit("#E05A47", "#8E2F24");
                 case "rope_prompt": return Rope();
+                case "mount_ring": return MountRing();
             }
             // Placeholder dinosaurs: same body, per-species palette + accessory.
             if (name.StartsWith("enemy_") || name.StartsWith("mount_"))
@@ -732,6 +733,25 @@ namespace DinoImpact
             c.Ellipse(9f, 9f, 4.6f, 4.6f, new Color32(0, 0, 0, 0));
             c.Rect(7, 0, 4, 4, knot);
             return c.ToSprite("rope_prompt", 20f, new Vector2(.5f, .5f));
+        }
+
+        // Faint ground ring marking a sleeping mount's K-mount radius
+        // (反馈1: 圆圈范围内都能换乘). 128 px @ 128 ppu = 1 world unit wide,
+        // Lua scales it to 2 * C.mount.range.
+        static Sprite MountRing()
+        {
+            var c = new Canvas(128, 128);
+            Color32 line = new Color32(0x9B, 0xD6, 0x5A, 120);   // accent2
+            Color32 glow = new Color32(0xF2, 0xC1, 0x4E, 55);    // accent, soft inner halo
+            for (int y = 0; y < 128; y++)
+                for (int x = 0; x < 128; x++)
+                {
+                    float dx = x - 63.5f, dy = y - 63.5f;
+                    float d = Mathf.Sqrt(dx * dx + dy * dy);
+                    if (d <= 62f && d > 57.5f) c.Set(x, y, line);
+                    else if (d <= 57.5f && d > 54.5f) c.Set(x, y, glow);
+                }
+            return c.ToSprite("mount_ring", 128f, new Vector2(.5f, .5f));
         }
 
         // ------------------------------------------------------------------ ground

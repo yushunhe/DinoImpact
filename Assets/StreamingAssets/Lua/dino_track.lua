@@ -61,9 +61,13 @@ function T.addSleepDino(mountKey, x, y)
     local m = Data.mounts[mountKey]
     local id = Host.entity.new(m.sleep, x, y, 0)
     local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1, -.4)
+    -- 换乘范围圈（反馈1）：圈内按 K 就能换，玩家一眼看到可换位置
+    local rid = Host.entity.new(Config.sprites.ring, x, y, -.15)
+    local rd = Config.mount.range * 2
+    Host.entity.setScale(rid, rd, rd, 1)
     local it = {
         type = "mount", kind = mountKey, class = "mount", mount = true,
-        x = x, y = y, radius = .95, id = id, zzz = zid, dead = false,
+        x = x, y = y, radius = .95, id = id, zzz = zid, ring = rid, dead = false,
     }
     T.items[#T.items + 1] = it
     -- 1113 反馈：睡觉龙可被弓箭射杀（防值同 1.2.6 物种）、会被暴龙吞掉
@@ -164,6 +168,7 @@ function T.clear()
         local it = T.items[i]
         if Host.entity.exists(it.id) then Host.entity.kill(it.id) end
         if it.zzz and Host.entity.exists(it.zzz) then Host.entity.kill(it.zzz) end
+        if it.ring and Host.entity.exists(it.ring) then Host.entity.kill(it.ring) end
     end
     T.items = {}
 end
@@ -250,7 +255,7 @@ function T.update(dt, P)
         T.brakeT = T.brakeT - dt
         if T.brakeT <= 0 then
             T.brakeT = g[1] + math.random() * (g[2] - g[1])
-            Dino.spawnEvent(U.pick(Data.enemyWeights), P, P.y + 6 + math.random() * 10)
+            Dino.spawnEvent(U.pick(Data.enemyWeights), P, P.y + 5 + math.random() * 7)
         end
     else
         T.brakeT = g[1] + math.random() * (g[2] - g[1])
@@ -270,6 +275,10 @@ function T.update(dt, P)
         if not remove then
             if it.type == "mount" and it.zzz and Host.entity.exists(it.zzz) then
                 Host.entity.setPos(it.zzz, it.x, it.y + 1.1 + math.sin(now * 2 + it.y) * .08, -.4)
+            end
+            if it.type == "mount" and it.ring and Host.entity.exists(it.ring) then
+                local k = Config.mount.range * 2 * (1 + .035 * math.sin(now * 2.2 + it.y))
+                Host.entity.setScale(it.ring, k, k, 1)
             end
             if (it.type == "egg" or it.type == "fruit") then
                 local dy = it.baseY + math.sin(now * 2.6 + it.phase) * .12
@@ -310,6 +319,7 @@ function T.update(dt, P)
         if remove then
             Host.entity.kill(it.id)
             if it.zzz and Host.entity.exists(it.zzz) then Host.entity.kill(it.zzz) end
+            if it.ring and Host.entity.exists(it.ring) then Host.entity.kill(it.ring) end
             table.remove(T.items, i)
         else
             i = i + 1
