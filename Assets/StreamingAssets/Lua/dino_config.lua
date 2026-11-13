@@ -44,11 +44,11 @@ C.run = {
 -- 1.2.3 archery: max 3 stored arrows, one refills every regen seconds.
 C.arrow = {
     max   = 3,
-    regen = 1.15,
+    regen = 2.0,        -- 2 秒补一根（原 1.15 太慷慨）
     speed = 17,
-    life  = .55,
     radius = .35,
     spreadDeg = 16,     -- 驰龙骑乘：一箭变三箭扇形的半角
+    -- 射程无限（暂定）：不再有 life 时限，飞出世界存在范围的箭才消失
 }
 
 -- 1.2.5 obstacle effect durations / multipliers (all "你来定" values).

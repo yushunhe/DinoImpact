@@ -242,7 +242,7 @@ function Dino.spawnArrow(x, y, sx, sy)
         sprite = Config.sprites.arrow, vx = sx * a.speed, vy = sy * a.speed,
         -- 箭头是横着画的（默认指向 +x）：逆时针转到速度方向，
         -- 飞行姿态与玩家偏转朝向一致
-        life = a.life, rotZ = math.atan2(sy, sx) * U.deg,
+        rotZ = math.atan2(sy, sx) * U.deg,
     })
 end
 
@@ -290,7 +290,9 @@ function Dino.update(dt, P, T)
         s.x = s.x + s.vx * dt
         s.y = s.y + s.vy * dt
         moveEnt(s)
-        local dead = s.t > s.life
+        -- 射程无限（用户定）：没有飞行时限，飞出世界存在范围才消失
+        local dead = math.abs(s.x - P.x) > Config.world.cullX
+            or s.y > P.y + 60 or s.y < P.y - Config.world.cullBack
         if not dead then
             for j = #Dino.enemies, 1, -1 do
                 local e = Dino.enemies[j]
