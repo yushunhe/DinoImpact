@@ -59,7 +59,7 @@ namespace DinoImpact
         {
             switch (name)
             {
-                case "tree":            units = 3.0f; return true;   // tree fern
+                case "tree":            units = 4.5f; return true;   // tree fern
                 case "palm":            units = 2.2f; return true;
                 case "bush":            units = 1.2f; return true;   // shrub
                 case "cycad":           units = 1.3f; return true;
