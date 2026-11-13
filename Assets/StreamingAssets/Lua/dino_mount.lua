@@ -2,7 +2,7 @@
 --
 -- Sleeping dinosaurs dot the plain (placed by dino_track). They never hurt
 -- the player - walking into one just passes it. Entering C.mount.range shows
--- the rope prompt from any direction; J leaps onto it: the new dinosaur bolts
+-- the rope prompt from any direction; K leaps onto it: the new dinosaur bolts
 -- forward, the old one is left standing in place until it leaves the view.
 -- Space fires the current dinosaur's skill (uses reset by energy fruit or by
 -- mounting another dinosaur).
@@ -19,7 +19,7 @@ local M = {
     prompt = nil,        -- sleeping dino currently mountable (UI reads this)
     strays = {},         -- abandoned dinosaurs, left in place
     chicks = {},         -- parasaur baby entities (visual only)
-    fanT = 0,
+    ropeId = nil,        -- 绳索提示实体（1113 反馈：换乘范围可视化）
 }
 
 local function info() return Data.mounts[M.current.key] end
@@ -35,6 +35,8 @@ local function applyMount(key, P)
     P.mountMul = d.speedMul
     P.setMountSprites({ run = d.run, idle = d.idle })
     if P.id then Host.entity.setSprite(P.id, d.idle) end
+    -- 驰龙被动：一箭变三箭（仍只消耗 1 支，1113 反馈）
+    P.shotSpread = (d.passive == "spread")
     -- 鸭嘴龙：崽替玩家挡刀（1.2.7 护盾），"次数"即崽数
     if d.passive == "shield" then
         P.onShield = function()
@@ -54,7 +56,8 @@ end
 function M.reset(P)
     M.mountCount = 0
     M.prompt = nil
-    M.fanT = 0
+    if M.ropeId and Host.entity.exists(M.ropeId) then Host.entity.kill(M.ropeId) end
+    M.ropeId = nil
     for i = #M.strays, 1, -1 do
         if Host.entity.exists(M.strays[i]) then Host.entity.kill(M.strays[i]) end
         table.remove(M.strays, i)
@@ -96,17 +99,10 @@ end
 local function passives(dt, P)
     local d = info()
     if d.passive == "devour" then
-        -- 靠近可被击杀的恐龙时直接一口吞掉
+        -- 靠近可被击杀的恐龙时直接一口吞掉（睡觉龙也算，1113 反馈）
         Dino.killNear(P.x, P.y + .6, d.devourR, true)
-    elseif d.passive == "fan" then
-        M.fanT = M.fanT - dt
-        if M.fanT <= 0 then
-            M.fanT = d.fanCd
-            -- 伤害等同一支箭，不是秒杀（1.2.7）：高防御敌龙能扛住一轮弹幕
-            local n = Dino.damageNear(P.x, P.y + 3, d.fanR, 1, true)
-            if n > 0 then fx.sound("tick", .5) end
-        end
     end
+    -- "spread"（驰龙三箭）在 P:shoot 里生效，"shield"（似鸟龙护盾）在 P:hurt 里生效
 end
 
 -- ------------------------------------------------------------------ chicks
@@ -148,12 +144,30 @@ function M.update(dt, P, T)
         M.prompt = best
     end
 
-    -- J: mount
+    -- 绳索提示实体（1113 反馈）：范围里有睡觉龙就在它头顶晃绳子
+    if M.prompt then
+        if not M.ropeId or not Host.entity.exists(M.ropeId) then
+            M.ropeId = Host.entity.new(Config.sprites.rope, M.prompt.x, M.prompt.y + 1.5, -.5)
+        end
+        Host.entity.setPos(M.ropeId,
+            M.prompt.x + math.sin(Host.time() * 4) * .18, M.prompt.y + 1.5, -.5)
+        M.ropeT = (M.ropeT or 0) - dt
+        if M.ropeT <= 0 then
+            M.ropeT = .45
+            fx.event("sparkle", M.prompt.x, M.prompt.y + 1.2, .4)
+        end
+    elseif M.ropeId then
+        if Host.entity.exists(M.ropeId) then Host.entity.kill(M.ropeId) end
+        M.ropeId = nil
+    end
+
+    -- K: mount
     if M.prompt and I.mount() then
         local it = M.prompt
         -- 旧恐龙留在原地，逐渐退出视野
         local dOld = Data.mounts[M.current.key]
         M.strays[#M.strays + 1] = Host.entity.new(dOld.idle, P.x, P.y, 0)
+        Dino.dropSleepMount(it)   -- 射杀目标随之消失（不算击杀数）
         T.removeMount(it)
         applyMount(it.kind, P)
         M.mountCount = M.mountCount + 1

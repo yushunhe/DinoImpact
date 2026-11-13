@@ -40,9 +40,34 @@ end
 
 local function removeAt(list, i)
     local it = list[i]
+    -- 睡觉的骑乘龙被射杀/吞掉：通知 track 清掉本体和 zzz
+    if it.sleepMount and it.item then it.item.dead = true end
     if it.id and Host.entity.exists(it.id) then Host.entity.kill(it.id) end
     if it.shadowId and Host.entity.exists(it.shadowId) then Host.entity.kill(it.shadowId) end
     table.remove(list, i)
+end
+
+-- 1113 反馈：睡着的可驾驭恐龙也能被弓箭射杀、被暴龙一口吞。track 摆放时
+-- 注册一条"可射击目标"，共用 track 实体的 id；接触伤害另行排除（不伤人）。
+function Dino.addSleepTarget(it, defVal)
+    if not defVal or defVal <= 0 then return nil end
+    local e = { kind = it.kind, x = it.x, y = it.y, radius = it.radius,
+                def = defVal, hp = defVal, still = true, sleepMount = true,
+                item = it, id = it.id, t = 0 }
+    table.insert(Dino.enemies, e)
+    return e
+end
+
+-- 成功换乘：目标条目撤下（实体归 track 处理），不计击杀
+function Dino.dropSleepMount(item)
+    for i = #Dino.enemies, 1, -1 do
+        local e = Dino.enemies[i]
+        if e.sleepMount and e.item == item then
+            e.id = nil
+            table.remove(Dino.enemies, i)
+            return
+        end
+    end
 end
 
 local function overlaps(a, b)
@@ -86,11 +111,12 @@ function Dino.spawnEvent(kind, P, y)
                 vy = U.chance(.4) and -1.2 or 0,
             })
         else
-            -- 连绵一排：需要射开缺口穿过
-            local n = 5 + math.floor(r() * 3)
-            local x0 = cx - n * .8
+            -- 连绵一排（1113：排面要够宽、间距别太密，逼玩家射开缺口穿过）
+            local n = 9 + math.floor(r() * 4)
+            local x0 = cx - n * .95
             for i = 1, n do
-                add(Dino.enemies, kind, x0 + (i - 1) * 1.6, y, def.radius, {
+                add(Dino.enemies, kind, x0 + (i - 1) * 1.9, y + (i % 2) * .7,
+                    def.radius, {
                     sprite = def.sprite, def = def.def, hp = def.def,
                     vx = -2.4, wall = true,
                 })
@@ -98,14 +124,28 @@ function Dino.spawnEvent(kind, P, y)
         end
 
     elseif kind == "trike" then
-        local pack = U.chance(.4) and 3 or 1
+        -- 1113 反馈：成群设定同似鸟龙（横排留缺口），单只则纵向冲锋、
+        -- 速度放慢、几乎不跟人（与横移的似鸟龙区分开）
         local cx = P:futureX(y)
-        for i = 1, pack do
-            add(Dino.enemies, kind, cx + (i - 1) * 1.8 - pack * .9,
-                y + 6 + i * 1.5, def.radius, {
-                sprite = def.sprite, def = def.def, hp = def.def,
-                charge = true, vy = -(3.2 + r()), vx = 0,
-            })
+        if U.chance(.4) then
+            local n = 4 + math.floor(r() * 3)
+            local x0 = cx - n * 1.05
+            for i = 1, n do
+                add(Dino.enemies, kind, x0 + (i - 1) * 2.1, y + (i % 2) * 1.2,
+                    def.radius, {
+                    sprite = def.sprite, def = def.def, hp = def.def,
+                    charge = true, vy = -2.4, wall = true,
+                })
+            end
+        else
+            local pack = U.chance(.3) and 2 or 1
+            for i = 1, pack do
+                add(Dino.enemies, kind, cx + (i - 1) * 2.6 - pack * 1.3
+                    + (r() * 2 - 1) * 2, y + 7 + i * 2, def.radius, {
+                    sprite = def.sprite, def = def.def, hp = def.def,
+                    charge = true, vy = -(2.4 + r() * .8),
+                })
+            end
         end
 
     elseif kind == "trex" then
@@ -119,19 +159,22 @@ function Dino.spawnEvent(kind, P, y)
         fx.shake(.15, .3)
 
     elseif kind == "para" then
-        -- 带崽的鸭嘴龙：成体杵着，身边 1~3 个幼体，进入判定范围后四散（1.2.6）
+        -- 带崽的鸭嘴龙（1113：把"杵着+炸窝"做出来）：成体居中，
+        -- 1~3 个幼体围在成体身边，进圈才突然四散
         local x0 = P:futureX(y) + (r() * 2 - 1) * 3
         for i = 1, 2 do
-            add(Dino.enemies, kind, x0 + (i - 1) * 1.6 - .8, y, def.radius, {
+            add(Dino.enemies, kind, x0 + (i - 1) * 2.0 - 1.0, y, def.radius, {
                 sprite = def.sprite, def = def.def, hp = def.def, still = true,
             })
         end
         local bd = def.babies
         local nb = 1 + math.floor(r() * 3)
         for i = 1, nb do
+            local ang = (i / nb) * U.tau + r() * .6
             add(Dino.enemies, kind .. "_baby",
-                x0 + (i - 1) * 1.1 - nb * .55, y + 1.1 + (i % 2) * .5, bd.radius, {
+                x0 + math.cos(ang) * 1.7, y + math.sin(ang) * 1.5, bd.radius, {
                 sprite = bd.sprite, def = bd.def, hp = bd.def, baby = true,
+                cx = x0, cy = y,
             })
         end
 
@@ -161,13 +204,14 @@ function Dino.spawnEvent(kind, P, y)
         end
 
     elseif kind == "sauropod" then
-        -- 路过蜥脚类：出现时镜头晃动展现体型（1.2.6）-> 影子前摇 -> 大脚落下
+        -- 路过蜥脚类（1113 重做）：巨大身影在前方横向穿过、只露腿；
+        -- 每一步都往玩家的预测路线上落脚——影子前摇后大脚踩下，踩到即死
         local dir = U.chance(.5) and 1 or -1
-        add(Dino.enemies, kind, P.x - dir * 10, P.y + 2, .1, {
+        add(Dino.enemies, kind, P.x - dir * 18, P.y + 10, .1, {
             sprite = def.sprite, walk = true, dir = dir,
-            legs = {}, stepT = 0, side = dir,
+            legs = {}, stepT = .1, speed = 3.4 + r(),
         })
-        fx.shake(.2, .5)
+        fx.shake(.25, .6)
 
     elseif kind == "ptero" then
         -- 拉屎翼龙：翼影掠过 -> 大便影子一排（横线或竖线，1.2.6）-> 一串落下
@@ -233,33 +277,6 @@ local function hurtEnemy(e)
     return false
 end
 
--- Damage every shootable nuisance within r by `dmg` (the Deinonychus mount's
--- feather fan deals "伤害等同同一支箭" - one arrow's worth, not a kill, so a
--- def-2/3 enemy survives a single volley, per 1.2.7).
-function Dino.damageNear(x, y, r, dmg, countKills)
-    local n = 0
-    local i = 1
-    while i <= #Dino.enemies do
-        local e = Dino.enemies[i]
-        local dx, dy = e.x - x, e.y - y
-        if (e.def or 0) > 0 and dx * dx + dy * dy < (r + e.radius) * (r + e.radius) then
-            e.hp = (e.hp or e.def) - dmg
-            fx.event("impact", e.x, e.y, .6)
-            if e.hp <= 0 then
-                Dino.kills = Dino.kills + (countKills ~= false and 1 or 0)
-                fx.sound("coin", .6)
-                removeAt(Dino.enemies, i)
-                n = n + 1
-            else
-                i = i + 1
-            end
-        else
-            i = i + 1
-        end
-    end
-    return n
-end
-
 -- ------------------------------------------------------------------ update
 function Dino.update(dt, P, T)
     local cull = P.y - Config.world.cullBack
@@ -296,33 +313,34 @@ function Dino.update(dt, P, T)
             or math.abs(e.x - P.x) > Config.world.cullX
 
         if e.walk then
-            -- sauropod legs crossing the plain
-            e.x = e.x + e.dir * 2.6 * dt
+            -- 蜥脚类横穿；脚落在玩家预测路线上（刹车停住也照样被瞄准）
+            e.x = e.x + e.speed * e.dir * dt
             e.stepT = e.stepT - dt
             if e.stepT <= 0 then
-                e.stepT = .85
-                local g = Dino.gen
-                table.insert(e.legs, { x = e.x, y = e.y - 2 + math.random() * 5,
-                                       phase = 0, r = 1.1 + math.random() * .4, gen = g,
-                                       -- 影子前摇：先出现脚印状的影子，然后脚落下
-                                       sid = Host.entity.new("footprint", e.x,
-                                            e.y - 2, .3) })
-                Host.entity.setScale(e.legs[#e.legs].sid, 1.4, 2.2, 1)
-                if #e.legs > 6 then
+                e.stepT = .8
+                local ly = P.y + 2.5 + math.random() * 10
+                local lx = P:futureX(ly) + (math.random() * 2 - 1) * 2.6
+                table.insert(e.legs, { x = lx, y = ly, phase = 0,
+                                       -- "先到的更大"：越新登记的脚越小
+                                       r = math.max(1.15, 1.9 - .16 * #e.legs),
+                                       -- 影子前摇：先出现脚印状的影子
+                                       sid = Host.entity.new("footprint", lx, ly, .3) })
+                Host.entity.setScale(e.legs[#e.legs].sid, 1.7, 2.6, 1)
+                if #e.legs > 5 then
                     local old = table.remove(e.legs, 1)
                     if old.sid and Host.entity.exists(old.sid) then Host.entity.kill(old.sid) end
                 end
             end
             for _, leg in ipairs(e.legs) do
                 leg.phase = leg.phase + dt
-                if leg.phase > .45 and not leg.stomped then
+                if leg.phase > .55 and not leg.stomped then
                     leg.stomped = true
                     if leg.sid and Host.entity.exists(leg.sid) then
-                        Host.entity.setScale(leg.sid, 2.4, 3.4, 1)
+                        Host.entity.setScale(leg.sid, 3.2, 4.6, 1)   -- 大脚落下
                     end
-                    fx.shake(.3, .25)
+                    fx.shake(.35, .25)
                 end
-                if leg.phase > .45 and leg.phase < .85 and P.alive
+                if leg.stomped and leg.phase < 1.0 and P.alive
                     and P.flyT <= 0 then
                     local dx, dy = leg.x - P.x, leg.y - P.y
                     if dx * dx + dy * dy < leg.r * leg.r then
@@ -330,29 +348,37 @@ function Dino.update(dt, P, T)
                         P:hurt(true, "Stomped flat by a passing sauropod.")
                     end
                 end
-                if leg.phase > 1.1 and leg.sid then
+                if leg.phase > 1.3 and leg.sid then
                     if Host.entity.exists(leg.sid) then Host.entity.kill(leg.sid) end
                     leg.sid = nil
-                    leg.done = true
                 end
             end
-            gone = gone or math.abs(e.x - P.x) > 14
+            gone = gone or math.abs(e.x - P.x) > 20
 
         elseif e.ptero then
-            -- wing shadow sweeps past, then a line of droppings
+            -- 翼影掠过 -> 一溜"大便影子"逐个前摇（先到的更大）-> 半秒后逐个落下（1113 重做）
             e.x = e.x + 6 * dt
-            if Host.entity.exists(e.id) then Host.entity.setPos(e.id, e.x, P.y + 7, -.6) end
+            if Host.entity.exists(e.id) then Host.entity.setPos(e.id, e.x, P.y + 9, -.6) end
             e.dropT = e.dropT - dt
             if e.dropT <= 0 then
                 e.dropT = 9
                 local g = Dino.gen
                 for k, spot in ipairs(e.line) do
-                    fx.after(.12 * k, function()
+                    local shSz = math.max(.7, 1.7 - .13 * (k - 1))   -- 先到的更大
+                    fx.after(.18 * k, function()
+                        if Dino.gen ~= g then return end
+                        spot.sid = Host.entity.new("shadow", spot.x, spot.y, .3)
+                        Host.entity.setScale(spot.sid, shSz * 1.6, shSz, 1)
+                    end, "ptsh" .. k)
+                    fx.after(.18 * k + .55, function()
                         if Dino.gen ~= g then return end   -- run ended meanwhile
+                        if spot.sid and Host.entity.exists(spot.sid) then
+                            Host.entity.kill(spot.sid)
+                        end
+                        spot.sid = nil
                         local s = { kind = "poop", x = spot.x, y = spot.y,
-                                    radius = .45, t = 0, life = 2.6,
+                                    radius = .5, t = 0, life = 2.6,
                                     id = Host.entity.new("poop", spot.x, spot.y, 0) }
-                        -- 先落下的大（"先出现一溜影子，先到的更大"，1.2.6）
                         local sz = math.max(.6, 1.3 - .12 * (k - 1))
                         Host.entity.setScale(s.id, sz, sz, 1)
                         table.insert(Dino.their, s)
@@ -374,7 +400,8 @@ function Dino.update(dt, P, T)
             end
             e.steerT = e.steerT + dt
             local ramp = math.min(1, e.steerT / Data.enemies.trex.rampTime)
-            e.y = e.y + (speed * (.55 + .7 * ramp) + .6) * dt
+            -- 1113：整体放慢，配合大视野留反应时间
+            e.y = e.y + (speed * (.45 + .5 * ramp) + .5) * dt
             e.x = e.x + U.clamp((P.x - e.x) * 2.2, -4, 4) * dt
             if e.life <= 0 then gone = true; fx.sound("crash", .4) end
             -- hits a blocking obstacle: loses interest
@@ -403,12 +430,13 @@ function Dino.update(dt, P, T)
         elseif e.overtaker then
             -- Ankylosaurus herd: overtake, then sit in front, mirror steering,
             -- dodge blocking obstacles.
+            -- 1113：超车与跟随都放慢（原来太快来不及反应）
             local targetY = P.y + e.leadOff
             if e.y < targetY then
-                e.y = e.y + (speed * 1.45) * dt
+                e.y = e.y + (speed * 1.05) * dt
             else
                 e.y = e.y + speed * dt
-                e.x = e.x + U.clamp((P.x - e.x) * 1.6, -3.5, 3.5) * dt
+                e.x = e.x + U.clamp((P.x - e.x) * 1.2, -2.2, 2.2) * dt
             end
             local ahead = blockingAt(T, e.x, e.y + 1.4)
             if ahead then
@@ -441,11 +469,14 @@ function Dino.update(dt, P, T)
             if e.shooter and not e.blocker then e.y = e.y - 1 * dt end
 
         elseif e.baby then
-            -- 幼体：进入判定范围后突然快速四散跑开
+            -- 幼体：玩家进窝才整窝同时炸开，沿"离窝心"方向猛冲（1113 加强）
             if not e.fled and U.dist(e.x, e.y, P.x, P.y) < Data.enemies.para.scatterR then
                 e.fled = true
-                local ang = math.random() * U.tau
-                e.vx, e.vy = math.cos(ang) * 5.5, math.sin(ang) * 5.5
+            end
+            if e.fled and not e.vx then
+                local ax, ay = e.x - (e.cx or e.x), e.y - (e.cy or e.y)
+                local ang = math.atan2(ay, ax) + (math.random() * 2 - 1) * .5
+                e.vx, e.vy = math.cos(ang) * 7, math.sin(ang) * 7
             end
             if e.fled then e.x = e.x + e.vx * dt; e.y = e.y + e.vy * dt end
 
@@ -453,9 +484,9 @@ function Dino.update(dt, P, T)
             -- adults just stand; nothing to update
 
         elseif e.charge then
-            -- 三角龙：纵向（或略微倾斜）冲向玩家
+            -- 三角龙：路径偏纵、几乎不跟人（1113：与横移的似鸟龙区分）
             e.y = e.y + e.vy * dt
-            e.x = e.x + U.clamp((P.x - e.x) * .8, -1.6, 1.6) * dt
+            e.x = e.x + U.clamp((P.x - e.x) * .3, -.6, .6) * dt
 
         else
             if e.vx then e.x = e.x + e.vx * dt end
@@ -468,8 +499,10 @@ function Dino.update(dt, P, T)
             moveEnt(e)
         end
 
-        -- contact damage (chase/walk/ptero handled above)
+        -- contact damage (chase/walk/ptero handled above; sleepMount = 睡着的
+        -- 骑乘龙，可射杀但本身无害，1113)
         if P.alive and not gone and not e.chase and not e.walk and not e.ptero
+            and not e.sleepMount
             and P.airborneT <= 0 and P.flyT <= 0 then
             if overlaps(e, P) then
                 if P.chargeT > 0 and (e.def or 0) > 0 then
@@ -516,7 +549,7 @@ function Dino.clear()
     for i = #Dino.enemies, 1, -1 do removeAt(Dino.enemies, i) end
     Dino.kills = 0
     fx.cancel("poop")
-    for k = 1, 12 do fx.cancel("poop" .. k) end
+    for k = 1, 12 do fx.cancel("poop" .. k); fx.cancel("ptsh" .. k) end
 end
 
 function Dino.reset()

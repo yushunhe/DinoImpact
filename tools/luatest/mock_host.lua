@@ -190,6 +190,7 @@ function M.new()
         shoot = function() return false end,
         mount = function() return false end,
         skill = function() return false end,
+        stop = function() return false end,
     }
 
     host._debug = {

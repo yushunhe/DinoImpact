@@ -9,6 +9,7 @@ local Config = require("dino_config")
 local Dino = require("dino_dinos")
 local I = require("input")
 local U = require("util")
+local fx = require("fx")
 
 local H = Config.heading
 local R = Config.run
@@ -37,8 +38,13 @@ local P = {
     -- archery (1.2.3)
     arrows = A.max, arrowT = 0,
 
+    -- 1113 反馈：S 按住 = 停止前进（恐龙事件仍会来找你）
+    braking = false,
+
     -- mount-facing state written by dino_mount
     mountMul = 1,
+    shotSpread = false,   -- 骑驰龙时：一箭变三箭
+    fxT = 0,              -- 技能状态特效节拍器
     spriteSet = { run = { "dino_run0", "dino_run1" }, idle = "dino_idle" },
 
     id = nil, shadowId = nil, riderId = nil,
@@ -54,6 +60,7 @@ end
 
 local function currentSpeed()
     if P.stunned then return 0 end
+    if P.braking then return 0 end   -- 1113 反馈：S 停止前进
     local mul = P.mountMul
     if P.slowT > 0 then mul = mul * E.slowMul end
     if P.boostT > 0 then mul = mul * E.boostMul end
@@ -139,6 +146,7 @@ function P.reset()
     P.boostSkillT, P.boostSkillMul, P.pushT = 0, 1, 0
     P.effectCd = 0
     P.arrows, P.arrowT = A.max, 0
+    P.braking, P.shotSpread, P.fxT = false, false, 0
     P.mountMul = 1
     P.animT, P.frame = 0, 0
     P.spriteName = nil
@@ -275,8 +283,13 @@ function P:shoot()
     if P.arrows < 1 then return false end
     P.arrows = P.arrows - 1
     if P.arrows == A.max - 1 then P.arrowT = A.regen end
-    local a = headingAngle() * U.rad
-    Dino.spawnArrow(P.x, P.y + .4, math.sin(a), math.cos(a))
+    local a = headingAngle()
+    -- 骑驰龙时强化为三箭扇形，仍只消耗一支（1113 反馈）
+    local offs = P.shotSpread and { -A.spreadDeg, 0, A.spreadDeg } or { 0 }
+    for _, o in ipairs(offs) do
+        local r = (a + o) * U.rad
+        Dino.spawnArrow(P.x, P.y + .4, math.sin(r), math.cos(r))
+    end
     return true
 end
 
@@ -291,6 +304,9 @@ end
 -- ------------------------------------------------------------------ update
 function P.update(dt)
     if not P.alive then return end
+
+    -- S held: stand still (nuisance dinos still come find you, 1113 反馈)
+    P.braking = I.stop() and true or false
 
     -- steer / shoot edges
     steerEdge()
@@ -310,7 +326,7 @@ function P.update(dt)
     P.boostSkillT = dec(P.boostSkillT)
     P.pushT = dec(P.pushT)
     P.effectCd = dec(P.effectCd)
-    if P.stunned then P.invulnT = math.max(P.invulnT, .3) end
+    if P.stunned then P.invulnT = math.max(P.invulnT, R.postHit) end
 
     -- arrow regen (max 3 stored)
     if P.arrows < A.max then
@@ -342,6 +358,24 @@ function P.update(dt)
         end
     end
 
+    -- 1113 反馈：技能/受幻状态要有明显特效
+    P.fxT = P.fxT - dt
+    if P.fxT <= 0 then
+        if P.confuseT > 0 then
+            P.fxT = .28
+            fx.event("sparkle", P.x + (math.random() * 2 - 1) * .4, P.y + 1.15, .5)
+        elseif P.boostSkillT > 0 then
+            P.fxT = .09
+            fx.event("boost", P.x, P.y, .45)
+        elseif P.chargeT > 0 then
+            P.fxT = .12
+            fx.event("impact", P.x, P.y - .35, .3)
+        elseif P.flyT > 0 then
+            P.fxT = .18
+            fx.event("splash", P.x, P.y - .5, .35)
+        end
+    end
+
     -- visual state: tilt to the heading, jump arc, invuln blink
     local tilt = -headingAngle()
     local flying = P.flyT > 0
@@ -359,7 +393,10 @@ function P.update(dt)
         Host.entity.setPos(P.id, P.x, P.y + (air > 0 and .5 or 0), -0.2)
         Host.entity.setRot(P.id, 0, 0, tilt)
         Host.entity.setScale(P.id, 1.08 * airScale, 1.08 * airScale, 1)
-        Host.entity.setVisible(P.id, P.invulnT <= 0
+        -- 1113 反馈：闪烁只属于"受击停顿"；滞空/飞行/事后自由跑动不闪
+        local blink = P.invulnT > 0 and P.stunned
+            and P.airborneT <= 0 and P.flyT <= 0
+        Host.entity.setVisible(P.id, not blink
             or math.floor(Host.time() / R.blinkRate) % 2 == 0)
     end
     if P.riderId then

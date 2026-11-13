@@ -133,7 +133,7 @@ function UI.init()
     Host.ui.label("hud_uses", "", .965, .158, 22, C.accent, "right")
     -- centre-top: mount prompt (1.2.7)
     Host.ui.label("hud_prompt", "", .5, .06, 26, C.buttonHi, "center")
-    Host.ui.label("hud_hint", "A/D STEER   W CENTER   S SHOOT   J MOUNT   SPACE SKILL", .5, .955, 16, C.muted, "center")
+    Host.ui.label("hud_hint", "A/D STEER   W CENTER   S STOP   J SHOOT   K MOUNT   SPACE SKILL", .5, .955, 16, C.muted, "center")
     Host.ui.label("hud_toast", "", .5, .30, 40, C.accent, "center")
     UI.hudNames = {
         "hud_hearts", "hud_distance", "hud_eggs", "hud_kills", "hud_mounts",
@@ -147,7 +147,7 @@ function UI.init()
     Host.ui.label("menu_best", "BEST  0", .5, .325, 24, C.gold, "center")
     Host.ui.button("menu_start", "START RUN", .5, .44, 380, 74, action("start"))
     Host.ui.label("menu_controls", "A / D   STEP HEADING     W   SNAP TO CENTER", .5, .55, 23, C.white, "center")
-    Host.ui.label("menu_controls2", "S   SHOOT ARROW      J   MOUNT SLEEPING DINO      SPACE   SKILL", .5, .60, 21, C.accent2, "center")
+    Host.ui.label("menu_controls2", "S   STOP FORWARD      J   SHOOT ARROW      K   MOUNT      SPACE   SKILL", .5, .60, 21, C.accent2, "center")
     Host.ui.label("menu_goal", "You ride automatically. Dodge or shoot. Collect eggs. Swap dinos.", .5, .675, 23, C.white, "center")
     Host.ui.label("menu_footer", "ENTER START      ARROWS / WASD TO MOVE", .5, .93, 16, C.muted, "center")
     UI.menuNames = {
@@ -359,7 +359,7 @@ function UI.updateHud(P, Mount)
         setText("hud_mounts", "MOUNTS " .. tostring(Mount.mountCount))
         -- mount prompt (1.2.7)
         if Mount.prompt then
-            setText("hud_prompt", "[J] MOUNT THE " .. info.label)
+            setText("hud_prompt", "[K] MOUNT THE " .. info.label)
             Host.ui.show("hud_prompt", true)
         else
             Host.ui.show("hud_prompt", false)

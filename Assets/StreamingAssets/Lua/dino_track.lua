@@ -14,6 +14,7 @@ local T = {
     nextObstacle = 0,
     nextEgg = 0,
     nextEnemy = 0,
+    brakeT = 0,          -- 刹车时干扰龙的上门计时（1113）
 }
 
 -- ------------------------------------------------------------------ add
@@ -65,6 +66,8 @@ function T.addSleepDino(mountKey, x, y)
         x = x, y = y, radius = .95, id = id, zzz = zid, dead = false,
     }
     T.items[#T.items + 1] = it
+    -- 1113 反馈：睡觉龙可被弓箭射杀（防值同 1.2.6 物种）、会被暴龙吞掉
+    it.target = Dino.addSleepTarget(it, m.def)
     return it
 end
 
@@ -79,11 +82,26 @@ local function eggNear(x, y)
     return false
 end
 
--- 线形蛋串（沿用原型）或 多边形团（3-4-3，1.2.4 (1)）
--- 锚在玩家的预测到达点上，跟着朝向走，两边跑也能遇到蛋
+-- 1113 反馈：线形原来只有横向，补上"纵线"（顺着预测路线排，直跑连吃）；
+-- 多边形补 圆形/菱形 两种阵列（3-4-3 团保留）
 local function spawnEggRow(P, y)
     local cx = P:futureX(y)
-    if U.chance(.35) then
+    local mode = U.pick({ { "line", 26 }, { "vert", 24 }, { "blob", 20 },
+                          { "diamond", 16 }, { "circle", 14 } })
+    if mode == "line" then
+        local count = math.random(3, 5)
+        local x0 = cx + (math.random() * 2 - 1) * 3.8
+        local start = x0 - (count - 1) * 1.15 * .5
+        for i = 1, count do
+            T.addEgg(start + (i - 1) * 1.15, y)
+        end
+    elseif mode == "vert" then
+        local count = math.random(4, 6)
+        for i = 1, count do
+            local yy = y + (i - 1) * 1.7
+            T.addEgg(P:futureX(yy), yy)
+        end
+    elseif mode == "blob" then
         cx = cx + (math.random() * 2 - 1) * 1.5
         local rows = { { n = 3, dy = 1.2 }, { n = 4, dy = 0 }, { n = 3, dy = -1.2 } }
         for r = 1, #rows do
@@ -92,12 +110,17 @@ local function spawnEggRow(P, y)
                 T.addEgg(cx + (i - 1) * 1.15 - (row.n - 1) * .575, y + row.dy)
             end
         end
-    else
-        local count = math.random(3, 5)
-        local x0 = cx + (math.random() * 2 - 1) * 3.8
-        local start = x0 - (count - 1) * 1.15 * .5
-        for i = 1, count do
-            T.addEgg(start + (i - 1) * 1.15, y)
+    elseif mode == "diamond" then
+        local s = 1.35
+        local pts = { { 0, 2 }, { -1, 1 }, { -2, 0 }, { -1, -1 },
+                      { 0, -2 }, { 1, -1 }, { 2, 0 }, { 1, 1 } }
+        for _, p in ipairs(pts) do
+            T.addEgg(cx + p[1] * s, y + p[2] * s * .85)
+        end
+    else   -- circle：圆环八枚
+        for i = 1, 8 do
+            local ang = (i / 8) * U.tau
+            T.addEgg(cx + math.cos(ang) * 2.1, y + math.sin(ang) * 1.7)
         end
     end
 end
@@ -122,11 +145,15 @@ local function spawnObstacleRow(P, y)
         end
         return
     end
-    local count = U.chance(.32) and 2 or 1
+    -- 1113 反馈：效果类障碍不掉血、占地放大后要"大胆分布广泛"，
+    -- 一行最多 3 个；阻拦类仍贴脸放，保证撞得实
+    local count = math.random(1, U.chance(.45) and 3 or 2)
     for i = 1, count do
-        local x = cx + (math.random() * 2 - 1) * 6.5
+        local kind = U.pick(Data.obstacleWeights)
+        local spread = Data.obstacles[kind].class == "block" and 6.5 or 10
+        local x = cx + (math.random() * 2 - 1) * spread
         if not eggNear(x, y) then
-            addObstacle(U.pick(Data.obstacleWeights), x, y + (i - 1) * .9)
+            addObstacle(kind, x, y + (i - 1) * .9)
         end
     end
 end
@@ -145,6 +172,7 @@ function T.reset(P)
     T.nextObstacle = P.y + S.safeStart
     T.nextEgg = P.y + 4.5
     T.nextEnemy = P.y + S.safeStart + 14
+    T.brakeT = S.brakeEventGap[1]
     for i = 1, 3 do T.addEgg(P.x - 1.2 + (i - 1) * 1.2, P.y + 5.5) end
     -- 开局默认骑乘似鸟龙在 UI 上说明；路上先给一只睡觉的三角龙当教学换乘点
     T.addSleepDino("trike", P.x + 3.2, P.y + S.safeStart + 6)
@@ -176,7 +204,9 @@ local function hitObstacle(it, P)
             local k = (rr - d) / math.max(d, .001)
             P.x = P.x + (P.x - it.x) * k
             P.y = P.y + (P.y - it.y) * k
-            P:extendInvuln(.3)
+            -- 1113 反馈：密集处连续掉血 → 保持接触期间把无敌顶到 postHit，
+            -- 脱离碰撞判定后还剩 ~1 秒缓冲
+            P:extendInvuln(Config.run.postHit)
         end
     elseif it.class == "turn" then
         if P:applyEffect("turn") then
@@ -213,10 +243,23 @@ function T.update(dt, P)
         T.nextEnemy = T.nextEnemy + 16 + math.random() * 14
     end
 
+    -- 1113 反馈：刹车停住不等于安全区，干扰龙照样上门来找（可射可躲）
+    local g = S.brakeEventGap
+    if P.braking and P.alive then
+        T.brakeT = T.brakeT - dt
+        if T.brakeT <= 0 then
+            T.brakeT = g[1] + math.random() * (g[2] - g[1])
+            Dino.spawnEvent(U.pick(Data.enemyWeights), P, P.y + 6 + math.random() * 10)
+        end
+    else
+        T.brakeT = g[1] + math.random() * (g[2] - g[1])
+    end
+
     local now = Host.time()
     local cull = P.y - Config.world.cullBack
     local cullX = Config.world.cullX
     local i = 1
+    local deepest, deepestOver = nil, 0
     while i <= #T.items do
         local it = T.items[i]
         local remove = it.dead or it.y < cull or it.y > P.y + S.ahead + 30
@@ -253,7 +296,12 @@ function T.update(dt, P)
                     end
                     if T.onPickup then T.onPickup(it.kind) end
                 else
-                    hitObstacle(it, P)
+                    -- 只结算"重叠最深"的一个障碍：多块放大后的石头同时挤住
+                    -- 玩家时，逐条推出的法线会互相抵消、把人永久卡死
+                    local rr = P.radius + it.radius
+                    local over = rr * rr
+                        - U.dist2(P.x, P.y, it.x, it.y)
+                    if over > deepestOver then deepest, deepestOver = it, over end
                 end
             end
         end
@@ -266,6 +314,7 @@ function T.update(dt, P)
             i = i + 1
         end
     end
+    if deepest and P.alive then hitObstacle(deepest, P) end
     Dino.update(dt, P, T)
 end
 

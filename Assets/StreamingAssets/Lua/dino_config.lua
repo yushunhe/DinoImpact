@@ -37,6 +37,7 @@ C.run = {
     rampMax    = 1.55,
     hpMax      = 3,
     invuln     = .9,    -- minimum invulnerability after losing a heart
+    postHit    = 1.0,   -- 1113 反馈：碰撞判定结束后追加的无敌缓冲
     blinkRate  = .09,   -- sprite flicker period while invulnerable
 }
 
@@ -47,6 +48,7 @@ C.arrow = {
     speed = 17,
     life  = .55,
     radius = .35,
+    spreadDeg = 16,     -- 驰龙骑乘：一箭变三箭扇形的半角
 }
 
 -- 1.2.5 obstacle effect durations / multipliers (all "你来定" values).
@@ -60,11 +62,11 @@ C.effects = {
 }
 
 C.camera = {
-    size = 6.2,
-    yOffset = 3.1,
+    size = 9.6,         -- 1113 反馈：视野放大 ~1.55 倍，给足判断时间
+    yOffset = 3.6,
     followRate = 9,
     sizeLerp = 3.5,
-    zoomRun = .45,
+    zoomRun = .6,
 }
 
 C.world = {
@@ -104,14 +106,15 @@ C.spawn = {
     killValue = 60,
     mountValue = 120,
     fruitChance = .14,     -- an egg row becomes a guarded fruit instead
-    sleepChance = .10,     -- an obstacle row becomes a sleeping mount dinosaur
+    sleepChance = .28,     -- 1113 反馈：可驾驭恐龙出现频率大幅提高
     enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
+    brakeEventGap = { 6, 10 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
 
--- 换乘判定（1.2.7 调整版）：睡觉恐龙不伤害玩家；进入 range 即出绳索提示，
--- 按 J 就能换（不看朝向，也没有"必须正对"的判定）。
+-- 换乘判定（1.2.7 调整版 + 1113 反馈）：睡觉恐龙不伤害玩家、可被射杀；
+-- 进入 range 即出绳索提示，按 K 就能换（不看朝向）。
 C.mount = {
-    range = 4.0,
+    range = 5.5,        -- 1113 反馈：判断距离再放大，且有绳索实体特效提示
 }
 
 -- player body / animation

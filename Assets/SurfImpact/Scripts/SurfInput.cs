@@ -79,10 +79,11 @@ namespace SurfImpact
 
         public bool RestartPressed => Input.GetKeyDown(KeyCode.R);
 
-        // Design doc keys: S shoots, J mounts a sleeping dinosaur, Space uses the skill.
-        public bool ShootPressed => Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow);
-        public bool MountPressed => Input.GetKeyDown(KeyCode.J);
+        // 1113 反馈改键：S 停止前进（按住），J 射箭，K 换乘，Space 技能。
+        public bool ShootPressed => Input.GetKeyDown(KeyCode.J);
+        public bool MountPressed => Input.GetKeyDown(KeyCode.K);
         public bool SkillPressed => Input.GetKeyDown(KeyCode.Space);
+        public bool StopHeld => Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow);
 
         public bool ConfirmPressed =>
             Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space);

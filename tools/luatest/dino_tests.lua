@@ -236,7 +236,7 @@ steps(1, .05)
 check(M.prompt ~= nil, "rope prompt shows when close and facing it")
 local mountsBefore = M.mountCount
 step(.05, { mount = true })
-check(M.current.key == "trike", "J swaps onto the sleeping triceratops")
+check(M.current.key == "trike", "K swaps onto the sleeping triceratops")
 check(M.mountCount == mountsBefore + 1, "the swap counts toward the results")
 check(M.current.uses == 1, "skill charges come from the new dinosaur")
 
@@ -316,7 +316,7 @@ local hpS = P.hp
 local sleepy = Game.debugSpawnMount("trike", P.x, P.y)   -- right on top of us
 steps(4, .05)
 check(P.hp == hpS, "撞睡觉恐龙不掉血（径直路过）")
-check(M.prompt == sleepy, "重合时仍出绳索提示，按 J 能换")
+check(M.prompt == sleepy, "重合时仍出绳索提示，按 K 能换")
 -- mount from directly behind, heading 中: old facing rule is gone
 startFresh()
 Game.debugSpawnMount("pter", P.x, P.y - 3)
@@ -324,17 +324,79 @@ steps(1, .05)
 check(M.prompt ~= nil, "背后 3 格也出提示（只看距离，不看朝向）")
 local mountsS = M.mountCount
 step(.05, { mount = true })
-check(M.current.key == "pter" and M.mountCount == mountsS + 1, "进圈按 J 即换乘")
+check(M.current.key == "pter" and M.mountCount == mountsS + 1, "进圈按 K 即换乘")
 
-io.write("feather fan = one arrow of damage, not instant kill (1.2.7)\n")
+io.write("deinonychus passive: one arrow becomes a three-arrow fan (1113)\n")
 startFresh()
 local dd = Game.debugGetDinos()
-dd.enemies = { { kind = "trike", x = P.x, y = P.y, radius = .8, def = 2, hp = 2 } }
-local kills0 = dd.kills
-dd.damageNear(P.x, P.y, 1, 1)
-check(#dd.enemies == 1 and dd.enemies[1].hp == 1, "防 2 的恐龙扛住一轮弹幕（掉一支箭的血）")
-dd.damageNear(P.x, P.y, 1, 1)
-check(#dd.enemies == 0 and dd.kills == kills0 + 1, "第二轮弹幕击杀并计入结算")
+Game.debugSpawnMount("dein", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+check(P.shotSpread == true, "骑上驰龙切换三箭扇形")
+local arrows0 = P.arrows
+step(.05, { shoot = true })
+check(#dd.shots == 3, "一次射击放出三箭")
+check(P.arrows == arrows0 - 1, "仍然只消耗一支箭")
+
+io.write("sleeping mounts are shootable targets (1113)\n")
+startFresh()
+local dd2 = Game.debugGetDinos()
+local sleepy2 = Game.debugSpawnMount("ankylo", P.x + 3, P.y + 8)
+local tgt
+for _, e in ipairs(dd2.enemies) do
+    if e.sleepMount and e.item == sleepy2 then tgt = e end
+end
+check(tgt ~= nil and tgt.def == 3 and tgt.hp == 3, "睡觉龙注册为可射击目标（甲龙防 3）")
+local kills0 = dd2.kills
+dd2.spawnArrow(tgt.x, tgt.y - 1, 0, 1)
+steps(1, .05)
+check(tgt.hp == 2, "一箭命中：3→2")
+dd2.spawnArrow(tgt.x, tgt.y - 1, 0, 1)
+steps(1, .05)
+check(tgt.hp == 1, "两箭：2→1")
+dd2.spawnArrow(tgt.x, tgt.y - 1, 0, 1)
+steps(1, .05)
+check(tgt.hp == 0 and dd2.kills == kills0 + 1, "三箭击杀并计入结算")
+check(sleepy2.dead == true, "被射杀的睡觉龙从轨道上消失")
+
+io.write("the chasing T-Rex gulps sleeping mounts (1113)\n")
+startFresh()
+local dd3 = Game.debugGetDinos()
+local sleepy3 = Game.debugSpawnMount("comps", P.x + 3, P.y + 8)
+local tgt3
+for _, e in ipairs(dd3.enemies) do
+    if e.sleepMount and e.item == sleepy3 then tgt3 = e end
+end
+local rex = Game.debugSpawnEnemy("trex", P.x + 3, P.y + 7)
+rex.x, rex.y = tgt3.x, tgt3.y - 1
+local kills1 = dd3.kills
+steps(2, .05)
+local stillThere = false
+for _, e in ipairs(dd3.enemies) do if e == tgt3 then stillThere = true end end
+check(not stillThere and sleepy3.dead, "路过一口吞掉睡觉的骑乘龙")
+check(dd3.kills == kills1, "被暴龙吞掉不算玩家击杀")
+
+io.write("S brakes: still, but never safe (1113)\n")
+startFresh()
+local y0 = P.y
+steps(20, .05, { stop = true })
+check(P.y == y0, "按住 S：前进冻结")
+local dd4 = Game.debugGetDinos()
+check(#dd4.enemies == 0, "刹车期间前方生成器不出龙（位置不动）")
+T.brakeT = .01
+step(.05, { stop = true })
+check(#dd4.enemies >= 1, "刹车也会上门：干扰龙事件照常出现")
+local ev = dd4.enemies[#dd4.enemies]
+check(math.abs(ev.y - P.y) < 17, "刹车事件就近生成，跑不掉")
+
+io.write("staying in the hitbox does not drain hearts (1113 postHit)\n")
+startFresh()
+local hpG = P.hp
+Game.debugSpawnObstacle("rock", P.x, P.y + .5)
+step(.05)
+check(P.hp == hpG - 1 and P.invulnT > .9, "碰撞把无敌顶到 postHit（约 1 秒）")
+resumeSteps(24, { up = true })   -- 1.2 s, still rubbing against the same rock
+check(P.hp == hpG - 1, "持续接触期间不连续掉血")
 
 io.write("endless sideways + spawns follow the heading\n")
 -- no air walls anywhere: the player may run arbitrarily far from x = 0,
