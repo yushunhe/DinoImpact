@@ -89,21 +89,21 @@ local function spawnEggRow(P, y)
     local mode = U.pick({ { "line", 26 }, { "vert", 24 }, { "blob", 20 },
                           { "diamond", 16 }, { "circle", 14 } })
     if mode == "line" then
-        local count = math.random(3, 5)
+        local count = math.random(4, 6)
         local x0 = cx + (math.random() * 2 - 1) * 3.8
         local start = x0 - (count - 1) * 1.15 * .5
         for i = 1, count do
             T.addEgg(start + (i - 1) * 1.15, y)
         end
     elseif mode == "vert" then
-        local count = math.random(4, 6)
+        local count = math.random(5, 7)
         for i = 1, count do
             local yy = y + (i - 1) * 1.7
             T.addEgg(P:futureX(yy), yy)
         end
     elseif mode == "blob" then
         cx = cx + (math.random() * 2 - 1) * 1.5
-        local rows = { { n = 3, dy = 1.2 }, { n = 4, dy = 0 }, { n = 3, dy = -1.2 } }
+        local rows = { { n = 4, dy = 1.2 }, { n = 5, dy = 0 }, { n = 4, dy = -1.2 } }
         for r = 1, #rows do
             local row = rows[r]
             for i = 1, row.n do
@@ -117,11 +117,13 @@ local function spawnEggRow(P, y)
         for _, p in ipairs(pts) do
             T.addEgg(cx + p[1] * s, y + p[2] * s * .85)
         end
-    else   -- circle：圆环八枚
-        for i = 1, 8 do
-            local ang = (i / 8) * U.tau
+        T.addEgg(cx, y)   -- 菱形中心再补一枚
+    else   -- circle：圆环十枚
+        for i = 1, 10 do
+            local ang = (i / 10) * U.tau
             T.addEgg(cx + math.cos(ang) * 2.1, y + math.sin(ang) * 1.7)
         end
+        T.addEgg(cx, y)
     end
 end
 
@@ -138,16 +140,15 @@ local function spawnObstacleRow(P, y)
         local fruitKey = U.chance(.55) and "fruit_energy" or "fruit_life"
         local fx0 = cx + (math.random() * 2 - 1) * 3.5
         addItem(fruitKey, fx0, y, "fruit")
-        for i = 1, 3 do
-            local ang = (i / 3) * U.tau + math.random()
+        for i = 1, 4 do
+            local ang = (i / 4) * U.tau + math.random()
             addObstacle(U.pick(Data.obstacleWeights),
                 fx0 + math.cos(ang) * 2.4, y + math.sin(ang) * 1.6)
         end
         return
     end
-    -- 1113 反馈：效果类障碍不掉血、占地放大后要"大胆分布广泛"，
-    -- 一行最多 3 个；阻拦类仍贴脸放，保证撞得实
-    local count = math.random(1, U.chance(.45) and 3 or 2)
+    -- 密度上调：一行 2~4 个（原来 1~3）；阻拦类仍贴脸放，保证撞得实
+    local count = math.random(2, U.chance(.45) and 4 or 3)
     for i = 1, count do
         local kind = U.pick(Data.obstacleWeights)
         local spread = Data.obstacles[kind].class == "block" and 6.5 or 10
@@ -240,7 +241,7 @@ function T.update(dt, P)
         if U.chance(S.enemyChance) then
             Dino.spawnEvent(U.pick(Data.enemyWeights), P, T.nextEnemy)
         end
-        T.nextEnemy = T.nextEnemy + 16 + math.random() * 14
+        T.nextEnemy = T.nextEnemy + 11 + math.random() * 9
     end
 
     -- 1113 反馈：刹车停住不等于安全区，干扰龙照样上门来找（可射可躲）

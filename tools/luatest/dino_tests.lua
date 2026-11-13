@@ -472,7 +472,7 @@ for i = 1, 2400 do
     if n > maxEnts then maxEnts = n end
 end
 eggsTotal = eggsTotal + P.eggs
-check(maxEnts < 400, "entity count stays bounded with live spawning (" .. maxEnts .. ")")
+check(maxEnts < 700, "entity count stays bounded with live spawning (" .. maxEnts .. ")")
 check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
 check(sawEnemy, "the event director spawns nuisance dinos")
 check(sawMount, "sleeping mount dinos appear on the road")

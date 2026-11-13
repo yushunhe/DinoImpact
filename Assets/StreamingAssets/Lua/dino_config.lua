@@ -70,8 +70,8 @@ C.camera = {
 }
 
 C.world = {
-    decorCell = 6,
-    decorRadius = 5,
+    decorCell = 4,       -- 密度翻倍：格子缩小，内容量按格计
+    decorRadius = 8,     -- 半径同步放大，保持覆盖面不缩水
     cullX = 44,        -- sideways existence cull (relative to the player)
     cullBack = 20,     -- behind the player
     cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity
@@ -92,12 +92,13 @@ C.juice = {
 }
 
 -- spawn director
+-- 密度全面上调约 1~2 倍（行距缩短 + 每行数量/概率提高）
 C.spawn = {
     safeStart = 16,
-    obstacleGapMin = 10,
-    obstacleGapMax = 17,
-    eggGapMin = 7,
-    eggGapMax = 13,
+    obstacleGapMin = 6,
+    obstacleGapMax = 10,
+    eggGapMin = 4,
+    eggGapMax = 8,
     ahead = 30,            -- how far ahead rows are placed (~5 s of travel)
     anchorLimit = 36,      -- a row's anchor never sits further than this from
                            -- the player sideways (>= tan 48deg * ahead, so the
@@ -105,10 +106,10 @@ C.spawn = {
     eggValue = 25,
     killValue = 60,
     mountValue = 120,
-    fruitChance = .14,     -- an egg row becomes a guarded fruit instead
-    sleepChance = .28,     -- 1113 反馈：可驾驭恐龙出现频率大幅提高
-    enemyChance = .30,     -- per obstacle row, chance of also spawning an enemy event
-    brakeEventGap = { 6, 10 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
+    fruitChance = .20,     -- an egg row becomes a guarded fruit instead
+    sleepChance = .34,     -- 换乘点：随行密度同步上调
+    enemyChance = .45,     -- per obstacle row, chance of also spawning an enemy event
+    brakeEventGap = { 3.5, 6 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
 
 -- 换乘判定（1.2.7 调整版 + 1113 反馈）：睡觉恐龙不伤害玩家、可被射杀；
