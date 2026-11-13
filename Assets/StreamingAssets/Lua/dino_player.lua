@@ -201,8 +201,13 @@ function P:hurt(lethal, reason)
     if not lethal and (P.invulnT > 0 or P.airborneT > 0 or P.flyT > 0) then
         return "blocked"
     end
-    -- 鸭嘴龙的崽挡刀（hook installed by dino_mount）
-    if not lethal and P.onShield and P.onShield() then return "blocked" end
+    -- 鸭嘴龙的崽挡刀（hook installed by dino_mount）：
+    -- 崽被撞飞、不掉心，但玩家照常进入无敌+停顿（1.2.7）
+    if not lethal and P.onShield and P.onShield() then
+        P.invulnT = R.invuln
+        P.stunned = true
+        return "hurt"
+    end
     P.hp = P.hp - 1
     if P.hp <= 0 or lethal then
         P.hp = 0
@@ -227,6 +232,8 @@ end
 
 -- ------------------------------------------------------------------ effects
 local function canEffect()
+    -- 三角龙/甲龙冲锋、似鸟龙加速期间"不受非阻拦型障碍物影响"（1.2.7）
+    if P.chargeT > 0 or P.boostSkillT > 0 then return false end
     return P.effectCd <= 0 and P.airborneT <= 0 and P.flyT <= 0
 end
 

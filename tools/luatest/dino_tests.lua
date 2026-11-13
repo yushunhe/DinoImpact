@@ -273,6 +273,46 @@ local hpP2 = P.hp
 Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
 check(P.hp == hpP2 - 1, "with no chicks left the rider is hurt")
 
+io.write("chick block still enters the invulnerable stun (1.2.7)\n")
+startFresh()
+Game.debugSpawnMount("para", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+P.invulnT = 0; P.stunned = false
+Game.debugSpawnObstacle("rock", P.x, P.y); step(.05)
+check(P.stunned and P.invulnT > 0, "崽挡刀后玩家照常进入无敌+停顿")
+
+io.write("charge ignores non-blocking obstacles (1.2.7)\n")
+startFresh()
+Game.debugSpawnMount("trike", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+step(.05, { skill = true })
+check(P.chargeT > 0, "triceratops is charging")
+local hCharge = P.heading
+Game.debugSpawnObstacle("bush", P.x, P.y); step(.05)
+check(P.heading == hCharge, "转向灌木在冲锋期间不生效")
+Game.debugSpawnObstacle("mushroom", P.x, P.y); step(.05)
+check(P.confuseT == 0, "蘑菇丛在冲锋期间不生效")
+
+io.write("T-Rex only ramps while you hold one heading (1.2.6)\n")
+startFresh()
+local rex = Game.debugSpawnEnemy("trex", P.x, P.y - 8)
+steps(20, .05)   -- heading stays 中
+check(rex and rex.steerT > .8, "保持方向不变：暴龙加速计时累积")
+step(.05, { right = true })
+check(rex and rex.steerT < .2, "换档立刻重置追逐加速")
+
+io.write("feather fan = one arrow of damage, not instant kill (1.2.7)\n")
+startFresh()
+local dd = Game.debugGetDinos()
+dd.enemies = { { kind = "trike", x = P.x, y = P.y, radius = .8, def = 2, hp = 2 } }
+local kills0 = dd.kills
+dd.damageNear(P.x, P.y, 1, 1)
+check(#dd.enemies == 1 and dd.enemies[1].hp == 1, "防 2 的恐龙扛住一轮弹幕（掉一支箭的血）")
+dd.damageNear(P.x, P.y, 1, 1)
+check(#dd.enemies == 0 and dd.kills == kills0 + 1, "第二轮弹幕击杀并计入结算")
+
 io.write("endless sideways + spawns follow the heading\n")
 -- no air walls anywhere: the player may run arbitrarily far from x = 0,
 -- and egg/obstacle rows anchor on the predicted path wherever they are.

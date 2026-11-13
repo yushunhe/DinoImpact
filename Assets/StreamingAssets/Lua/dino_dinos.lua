@@ -109,16 +109,17 @@ function Dino.spawnEvent(kind, P, y)
         end
 
     elseif kind == "trex" then
-        -- 追逐的暴龙：从身后出现，越追越快
+        -- 追逐的暴龙：从身后出现；玩家保持方向不变才会越追越快（1.2.6）
         add(Dino.enemies, kind, P.x, P.y - 8, def.radius, {
             sprite = def.sprite, def = 0, chase = true,
             life = def.dwell, vx = 0,
+            steerT = 0, lastH = P.heading,
             scale = 1.6,
         })
         fx.shake(.15, .3)
 
     elseif kind == "para" then
-        -- 带崽的鸭嘴龙：成体杵着，幼体在判定范围内四散
+        -- 带崽的鸭嘴龙：成体杵着，身边 1~3 个幼体，进入判定范围后四散（1.2.6）
         local x0 = P:futureX(y) + (r() * 2 - 1) * 3
         for i = 1, 2 do
             add(Dino.enemies, kind, x0 + (i - 1) * 1.6 - .8, y, def.radius, {
@@ -126,9 +127,13 @@ function Dino.spawnEvent(kind, P, y)
             })
         end
         local bd = def.babies
-        add(Dino.enemies, kind .. "_baby", x0 + 1.1, y + 1.2, bd.radius, {
-            sprite = bd.sprite, def = bd.def, hp = bd.def, baby = true,
-        })
+        local nb = 1 + math.floor(r() * 3)
+        for i = 1, nb do
+            add(Dino.enemies, kind .. "_baby",
+                x0 + (i - 1) * 1.1 - nb * .55, y + 1.1 + (i % 2) * .5, bd.radius, {
+                sprite = bd.sprite, def = bd.def, hp = bd.def, baby = true,
+            })
+        end
 
     elseif kind == "ankylo" then
         local n = 2 + math.floor(r() * 2)
@@ -156,20 +161,28 @@ function Dino.spawnEvent(kind, P, y)
         end
 
     elseif kind == "sauropod" then
-        -- 路过蜥脚类：影子前摇 -> 大脚落下（踩到即死）
+        -- 路过蜥脚类：出现时镜头晃动展现体型（1.2.6）-> 影子前摇 -> 大脚落下
         local dir = U.chance(.5) and 1 or -1
         add(Dino.enemies, kind, P.x - dir * 10, P.y + 2, .1, {
             sprite = def.sprite, walk = true, dir = dir,
             legs = {}, stepT = 0, side = dir,
         })
+        fx.shake(.2, .5)
 
     elseif kind == "ptero" then
-        -- 拉屎翼龙：翼影掠过 -> 大便影子 -> 一串落下
+        -- 拉屎翼龙：翼影掠过 -> 大便影子一排（横线或竖线，1.2.6）-> 一串落下
         local line = {}
         local n = 4 + math.floor(r() * 3)
-        local x0 = P.x + (r() * 2 - 1) * 3
+        local horiz = U.chance(.5)
+        local bx = P:futureX(P.y + 6)
         for i = 1, n do
-            line[i] = { x = x0 + (i - 1) * 1.15, y = P.y + 4 + i * 1.3 }
+            if horiz then
+                line[i] = { x = bx + (i - 1) * 1.15 - (n - 1) * .575,
+                            y = P.y + 5.5 + (r() * 2 - 1) * .25 }
+            else
+                line[i] = { x = bx + (r() * 2 - 1) * .25,
+                            y = P.y + 4 + i * 1.35 }
+            end
         end
         add(Dino.enemies, kind, P.x - 8, P.y + 6, .1, {
             sprite = def.sprite, ptero = true, line = line, dropT = .9,
@@ -216,6 +229,33 @@ local function hurtEnemy(e)
         return true
     end
     return false
+end
+
+-- Damage every shootable nuisance within r by `dmg` (the Deinonychus mount's
+-- feather fan deals "伤害等同同一支箭" - one arrow's worth, not a kill, so a
+-- def-2/3 enemy survives a single volley, per 1.2.7).
+function Dino.damageNear(x, y, r, dmg, countKills)
+    local n = 0
+    local i = 1
+    while i <= #Dino.enemies do
+        local e = Dino.enemies[i]
+        local dx, dy = e.x - x, e.y - y
+        if (e.def or 0) > 0 and dx * dx + dy * dy < (r + e.radius) * (r + e.radius) then
+            e.hp = (e.hp or e.def) - dmg
+            fx.event("impact", e.x, e.y, .6)
+            if e.hp <= 0 then
+                Dino.kills = Dino.kills + (countKills ~= false and 1 or 0)
+                fx.sound("coin", .6)
+                removeAt(Dino.enemies, i)
+                n = n + 1
+            else
+                i = i + 1
+            end
+        else
+            i = i + 1
+        end
+    end
+    return n
 end
 
 -- ------------------------------------------------------------------ update
@@ -310,6 +350,9 @@ function Dino.update(dt, P, T)
                         local s = { kind = "poop", x = spot.x, y = spot.y,
                                     radius = .45, t = 0, life = 2.6,
                                     id = Host.entity.new("poop", spot.x, spot.y, 0) }
+                        -- 先落下的大（"先出现一溜影子，先到的更大"，1.2.6）
+                        local sz = math.max(.6, 1.3 - .12 * (k - 1))
+                        Host.entity.setScale(s.id, sz, sz, 1)
                         table.insert(Dino.their, s)
                         fx.event("splash", spot.x, spot.y, .5)
                     end, "poop" .. k)
@@ -321,7 +364,14 @@ function Dino.update(dt, P, T)
             -- T-Rex: accelerates from behind unless you keep steering;
             -- stops on blocking obstacles, gulps other nuisance dinos.
             e.life = e.life - dt
-            local ramp = math.min(1, e.t / Data.enemies.trex.rampTime)
+            -- "若保持方向不变，速度越来越快"（1.2.6）：ramp 计的是玩家
+            -- 停留在同一档朝向上的时长，换档（A/D/W/转向灌木）即重置
+            if P.heading ~= e.lastH then
+                e.steerT = 0
+                e.lastH = P.heading
+            end
+            e.steerT = e.steerT + dt
+            local ramp = math.min(1, e.steerT / Data.enemies.trex.rampTime)
             e.y = e.y + (speed * (.55 + .7 * ramp) + .6) * dt
             e.x = e.x + U.clamp((P.x - e.x) * 2.2, -4, 4) * dt
             if e.life <= 0 then gone = true; fx.sound("crash", .4) end

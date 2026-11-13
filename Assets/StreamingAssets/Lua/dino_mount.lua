@@ -101,7 +101,8 @@ local function passives(dt, P)
         M.fanT = M.fanT - dt
         if M.fanT <= 0 then
             M.fanT = d.fanCd
-            local n = Dino.killNear(P.x, P.y + 3, d.fanR, true)
+            -- 伤害等同一支箭，不是秒杀（1.2.7）：高防御敌龙能扛住一轮弹幕
+            local n = Dino.damageNear(P.x, P.y + 3, d.fanR, 1, true)
             if n > 0 then fx.sound("tick", .5) end
         end
     end
