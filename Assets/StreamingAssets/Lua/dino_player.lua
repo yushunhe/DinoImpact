@@ -77,6 +77,12 @@ function P.speed()
     return currentSpeed()
 end
 
+-- Enemy pursuit speed follows the run's difficulty ramp, not the player's
+-- brake, mount multiplier or temporary effects.
+function P.cruiseSpeed()
+    return cruise()
+end
+
 -- Predicted x when the world ahead reaches distance y: project exactly along
 -- the current heading, but never anchor a row more than anchorLimit sideways
 -- from the player (so it stays inside the existence-cull band and reachable

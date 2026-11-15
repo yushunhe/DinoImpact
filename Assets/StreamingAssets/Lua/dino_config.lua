@@ -61,6 +61,33 @@ C.effects = {
     reuseCd   = .9,                     -- 同一次效果不重复触发的冷却
 }
 
+-- 拉屎翼龙：覆盖整个可视战场，但按行列错峰落下，不瞬间铺满。
+C.ptero = {
+    columns = 11,
+    rows = 4,
+    width = 38,
+    startAhead = 4,
+    rowGap = 3.8,
+    columnStagger = .12,
+    rowStagger = .85,
+    shadowLead = .55,
+    speed = 8,
+    radius = .9,
+    poopLife = 2.6,
+}
+
+-- 路过蜥脚类：三只巨型脚掌横向覆盖战场，逐脚落下并留出可躲的缝。
+C.sauropod = {
+    maxSteps = 3,
+    stepInterval = .9,
+    footRadius = 4.2,
+    footOffsetsX = { -11.5, 0, 11.5 },
+    lead = 7.5,
+    rowGap = 4.5,
+    shadowScale = { 2.2, 3.4 },
+    footScale = { 8.4, 12 },
+}
+
 C.camera = {
     size = 9.6,         -- 1113 反馈：视野放大 ~1.55 倍，给足判断时间
     yOffset = 3.6,
@@ -75,6 +102,23 @@ C.world = {
     cullX = 44,        -- sideways existence cull (relative to the player)
     cullBack = 20,     -- behind the player
     cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity
+}
+
+-- 地貌（参考 Assets/Art/地貌.jpg）：底图永远是草地，蕨叶地/沼泽地按格子
+-- 用确定性哈希盖上去。每格先掷"蕨叶地"，没中再掷"沼泽地"，都没中就是
+-- 纯草地——所以大部分地方是草地，蕨叶地是小部分，沼泽地时不时出现。
+-- 每块地的尺寸、长宽比、中心偏移都随机；再叠 1~2 块小"卫星地"拼出海星
+-- 状边缘，避免一眼看出是矩形。
+C.terrain = {
+    cell      = 18,      -- 地貌判定格边长（世界单位）
+    radius    = 2,       -- 玩家周围生成几圈地貌格
+    fern      = { chance = .30, minFrac = .34, maxFrac = .78 },
+    swamp     = { chance = .10, minFrac = .26, maxFrac = .58 },
+    aspectMin = .72,     -- 地块高/宽
+    aspectMax = 1.30,
+    jitter    = .14,     -- 中心在格内抖动（格边长的比例）
+    satelliteChance = .55,          -- 再拼一块小地块的概率
+    satelliteSize   = { .30, .60 }, -- 小地块相对主地块的尺寸
 }
 
 C.juice = {

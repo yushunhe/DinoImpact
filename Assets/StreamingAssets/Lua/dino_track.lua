@@ -202,29 +202,29 @@ local function hitObstacle(it, P)
             fx.event("impact", it.x, it.y, 1)
             fx.shake(Config.juice.hurtShake, .25)
         end
-        -- 无敌/受击期间仍与碰撞体保持接触：把玩家沿法线推出，
-        -- 并把无敌延长到"本次碰撞判定结束"
+        -- 阻拦型障碍不消失，但把玩家沿法线推出，避免卡在碰撞体里
         local d = U.dist(P.x, P.y, it.x, it.y)
         local rr = it.radius + P.radius
         if d < rr then
             local k = (rr - d) / math.max(d, .001)
             P.x = P.x + (P.x - it.x) * k
             P.y = P.y + (P.y - it.y) * k
-            -- 1113 反馈：密集处连续掉血 → 保持接触期间把无敌顶到 postHit，
-            -- 脱离碰撞判定后还剩 ~1 秒缓冲
             P:extendInvuln(Config.run.postHit)
         end
     elseif it.class == "turn" then
+        it.dead = true
         if P:applyEffect("turn") then
             fx.sound("tick", .5)
             fx.event("sparkle", P.x, P.y, .5)
         end
     elseif it.class == "confuse" then
+        it.dead = true
         if P:applyEffect("confuse") then
             fx.sound("tick", .5)
             fx.event("sparkle", P.x, P.y + .8, .9)
         end
     else
+        it.dead = true
         P:applyEffect(it.class)   -- slow / boost / jump
     end
 end
@@ -265,7 +265,7 @@ function T.update(dt, P)
     local cull = P.y - Config.world.cullBack
     local cullX = Config.world.cullX
     local i = 1
-    local deepest, deepestOver = nil, 0
+    local deepest, deepestOver, deepestIndex = nil, 0, nil
     while i <= #T.items do
         local it = T.items[i]
         local remove = it.dead or it.y < cull or it.y > P.y + S.ahead + 30
@@ -305,13 +305,14 @@ function T.update(dt, P)
                         fx.event("boost", it.x, it.y, 1)
                     end
                     if T.onPickup then T.onPickup(it.kind) end
-                else
-                    -- 只结算"重叠最深"的一个障碍：多块放大后的石头同时挤住
-                    -- 玩家时，逐条推出的法线会互相抵消、把人永久卡死
+                elseif it.type == "obstacle" then
+                    -- 只结算重叠最深的一个障碍；命中后立即移除，避免卡死
                     local rr = P.radius + it.radius
                     local over = rr * rr
                         - U.dist2(P.x, P.y, it.x, it.y)
-                    if over > deepestOver then deepest, deepestOver = it, over end
+                    if over > deepestOver then
+                        deepest, deepestOver, deepestIndex = it, over, i
+                    end
                 end
             end
         end
@@ -325,7 +326,13 @@ function T.update(dt, P)
             i = i + 1
         end
     end
-    if deepest and P.alive then hitObstacle(deepest, P) end
+    if deepest and P.alive then
+        hitObstacle(deepest, P)
+        if deepest.dead then
+            if Host.entity.exists(deepest.id) then Host.entity.kill(deepest.id) end
+            table.remove(T.items, deepestIndex)
+        end
+    end
     Dino.update(dt, P, T)
 end
 

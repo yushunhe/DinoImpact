@@ -170,6 +170,8 @@ function M.update(dt, P, T)
         Dino.dropSleepMount(it)   -- 射杀目标随之消失（不算击杀数）
         T.removeMount(it)
         applyMount(it.kind, P)
+        -- 从飞行中的翼龙换乘会落到新坐骑上，不把旧技能状态带过去。
+        P.flyT, P.flyMax = 0, 0
         M.mountCount = M.mountCount + 1
         M.prompt = nil
         P.invulnT = math.max(P.invulnT, .5)

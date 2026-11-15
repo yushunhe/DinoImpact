@@ -12,7 +12,9 @@ local P = require("dino_player")
 local D = require("dino_dinos")
 local M = require("dino_mount")
 local T = require("dino_track")
+local W = require("dino_world")
 local Config = require("dino_config")
+local Data = require("dino_data")
 
 local failures = 0
 local function check(cond, msg)
@@ -215,6 +217,21 @@ Game.debugSpawnObstacle("rock", P.x, P.y + .3)
 steps(2, .05)
 check(P.hp == hpB, "滞空期间无视一切障碍")
 
+io.write("tree collision and one-shot obstacle cleanup\n")
+startFresh()
+check(Data.obstacles.tree.class == "block" and Data.obstacles.tree.radius >= 4.0,
+    "tree is a large blocking obstacle")
+local hpTree = P.hp
+local tree = Game.debugSpawnObstacle("tree", P.x + 2.4, P.y)
+step(.05)
+check(P.hp == hpTree - 1, "the large tree damages the player")
+check(not tree.dead and Host.entity.exists(tree.id), "blocking trees stay after impact")
+startFresh()
+local bushHit = Game.debugSpawnObstacle("bush", P.x, P.y)
+step(.05)
+check(bushHit.dead and not Host.entity.exists(bushHit.id),
+    "effect obstacles also disappear after contact")
+
 io.write("items (1.2.4)\n")
 startFresh()
 P.hp = 1
@@ -258,6 +275,26 @@ local hpF = P.hp
 Game.debugSpawnObstacle("rock", P.x, P.y + .2)
 steps(4, .05)
 check(P.hp == hpF, "flying ignores everything (全程无敌)")
+
+io.write("flight still allows egg pickup and mount swaps\n")
+startFresh()
+Game.debugSpawnMount("pter", P.x, P.y + 2.2)
+steps(1, .05)
+step(.05, { mount = true })
+step(.05, { skill = true })
+check(P.flyT > 0, "test starts while airborne")
+local eggsFly = P.eggs
+T.addEgg(P.x, P.y + .2)
+step(.05)
+check(P.flyT > 0 and P.eggs == eggsFly + 1, "flying pterosaur can collect eggs")
+local flyMount = Game.debugSpawnMount("trike", P.x, P.y + 2.2)
+step(.05)
+check(M.prompt == flyMount, "flying pterosaur sees the mount prompt")
+local mountsFly = M.mountCount
+step(.05, { mount = true })
+check(M.current.key == "trike" and M.mountCount == mountsFly + 1,
+    "flying pterosaur can swap mounts")
+check(P.flyT == 0, "swapping lands on the new mount")
 
 io.write("parasaur chicks as shield (1.2.7)\n")
 startFresh()
@@ -311,6 +348,59 @@ steps(20, .05)   -- heading stays 中
 check(rex and rex.steerT > .8, "保持方向不变：暴龙加速计时累积")
 step(.05, { right = true })
 check(rex and rex.steerT < .2, "换档立刻重置追逐加速")
+
+io.write("pteranodon carpet-bombs the battlefield in waves\n")
+startFresh()
+P.flyT = 100   -- keep the test alive while inspecting the pattern
+local ptero = Game.debugSpawnEnemy("ptero", P.x, P.y + 10)
+local minX, maxX = math.huge, -math.huge
+local minY, maxY = math.huge, -math.huge
+local minAt, maxAt = math.huge, -math.huge
+for _, spot in ipairs(ptero.bombs) do
+    minX, maxX = math.min(minX, spot.x), math.max(maxX, spot.x)
+    minY, maxY = math.min(minY, spot.y), math.max(maxY, spot.y)
+    minAt, maxAt = math.min(minAt, spot.at), math.max(maxAt, spot.at)
+end
+check(#ptero.bombs >= 40, "poop pattern covers the screen with many drops")
+check(maxX - minX >= 34 and maxY - minY >= 10, "poop pattern spans the full battlefield")
+check(maxAt - minAt >= 2.5, "poops are staggered instead of landing simultaneously")
+local ddCarpet = Game.debugGetDinos()
+steps(4, .05)
+check(#ddCarpet.their > 0 and #ddCarpet.their < #ptero.bombs,
+    "only the early waves have landed")
+steps(120, .05)
+local dropped = 0
+for _, spot in ipairs(ptero.bombs) do
+    if spot.dropped then dropped = dropped + 1 end
+end
+check(dropped == #ptero.bombs, "every scheduled poop eventually lands")
+local pteroGone = true
+for _, e in ipairs(ddCarpet.enemies) do
+    if e == ptero then pteroGone = false end
+end
+check(pteroGone, "pteranodon leaves after its carpet finishes")
+
+io.write("sauropod feet are huge and cover the battlefield\n")
+startFresh()
+P.flyT = 100
+local saur = Game.debugSpawnEnemy("sauropod", P.x, P.y + 10)
+steps(50, .05)
+local minLegX, maxLegX, maxLegR = math.huge, -math.huge, 0
+for _, leg in ipairs(saur.legs) do
+    minLegX, maxLegX = math.min(minLegX, leg.x), math.max(maxLegX, leg.x)
+    maxLegR = math.max(maxLegR, leg.r)
+end
+check(#saur.legs == Config.sauropod.maxSteps, "a few giant stomps cover the attack")
+check(maxLegX - minLegX >= 20, "stomps span the battlefield")
+check(maxLegR >= 3.5, "stomp collision radius is several times the old foot")
+
+io.write("ankylosaurus pursuit ignores the player's brake\n")
+startFresh()
+local ank = Game.debugSpawnEnemy("ankylo", P.x, P.y - 6)
+local ankY, playerY = ank.y, P.y
+steps(20, .05, { stop = true })
+check(P.y == playerY, "player remains stopped while holding S")
+check(ank.y > ankY + 2, "ankylosaurus keeps moving independently")
 
 io.write("sleeping mounts are harmless + proximity-only mounting\n")
 startFresh()
@@ -392,14 +482,17 @@ check(#dd4.enemies >= 1, "刹车也会上门：干扰龙事件照常出现")
 local ev = dd4.enemies[#dd4.enemies]
 check(math.abs(ev.y - P.y) < 30, "刹车事件就近生成，跑不掉")
 
-io.write("staying in the hitbox does not drain hearts (1113 postHit)\n")
+io.write("blocking obstacles are one-shot and do not stick\n")
 startFresh()
 local hpG = P.hp
-Game.debugSpawnObstacle("rock", P.x, P.y + .5)
+local stuckRock = Game.debugSpawnObstacle("rock", P.x, P.y + .5)
 step(.05)
-check(P.hp == hpG - 1 and P.invulnT > .9, "碰撞把无敌顶到 postHit（约 1 秒）")
-resumeSteps(24, { up = true })   -- 1.2 s, still rubbing against the same rock
-check(P.hp == hpG - 1, "持续接触期间不连续掉血")
+check(P.hp == hpG - 1 and P.stunned,
+    "the rock deals one hit and stuns the player")
+check(not stuckRock.dead and Host.entity.exists(stuckRock.id),
+    "blocking rocks stay in place")
+resumeSteps(24, { up = true })
+check(P.invulnT > 0, "invulnerability prevents further damage from the same rock")
 
 io.write("endless sideways + spawns follow the heading\n")
 -- no air walls anywhere: the player may run arbitrarily far from x = 0,
@@ -480,6 +573,60 @@ check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
 check(sawEnemy, "the event director spawns nuisance dinos")
 check(sawMount, "sleeping mount dinos appear on the road")
 check(eggsTotal > 20, "a real run harvests eggs naturally (eggs=" .. eggsTotal .. ")")
+
+io.write("terrain biomes: mostly grass, some fern, rare swamp\n")
+local counts = { grass = 0, fern = 0, swamp = 0 }
+local widths = {}
+local heights = {}
+for cy = -20, 20 do
+    for cx = -20, 20 do
+        local plan = W.debugTerrainPlan(cx, cy)
+        if plan then
+            counts[plan.kind] = (counts[plan.kind] or 0) + 1
+            widths[#widths + 1] = plan.blobs[1].w
+            heights[#heights + 1] = plan.blobs[1].h
+        else
+            counts.grass = counts.grass + 1
+        end
+    end
+end
+check(counts.grass > counts.fern + counts.swamp, "grass covers most of the map ("
+    .. counts.grass .. "/" .. (counts.grass + counts.fern + counts.swamp) .. ")")
+check(counts.fern > 0, "fern ground occurs")
+check(counts.swamp > 0, "swamp occurs")
+check(counts.fern > counts.swamp, "swamp is rarer than fern ground ("
+    .. counts.swamp .. " vs " .. counts.fern .. ")")
+table.sort(widths)
+table.sort(heights)
+check(#widths > 10 and widths[#widths] - widths[1] > 2,
+    "patch widths vary randomly (" .. string.format("%.1f..%.1f", widths[1], widths[#widths]) .. ")")
+check(heights[#heights] - heights[1] > 1.5, "patch heights vary randomly")
+local planA = W.debugTerrainPlan(3, -7)
+local planB = W.debugTerrainPlan(3, -7)
+local samePlan = false
+if planA == nil and planB == nil then
+    samePlan = true
+elseif planA and planB then
+    samePlan = planA.kind == planB.kind
+        and math.abs(planA.blobs[1].w - planB.blobs[1].w) < 1e-9
+        and math.abs(planA.blobs[1].h - planB.blobs[1].h) < 1e-9
+end
+check(samePlan, "the same cell always rolls the same terrain")
+
+startFresh()
+local patches, patchKinds = 0, {}
+for _, p in pairs(host._debug.terrain()) do
+    patches = patches + 1
+    patchKinds[p.kind] = true
+end
+
+check(patches > 0, "terrain patches are instantiated on the ground (" .. patches .. ")")
+check(patchKinds.fern or patchKinds.swamp, "at least one non-grass biome is visible near the start")
+check(patches == host.terrain.count(), "Host.terrain.count matches the instantiated patches")
+W.clear()
+local afterClear = 0
+for _ in pairs(host._debug.terrain()) do afterClear = afterClear + 1 end
+check(afterClear == 0, "clearing the world removes every terrain patch")
 
 io.write("HUD text\n")
 startFresh()
