@@ -239,6 +239,35 @@ check(blockers == Config.groveField.cols * Config.groveField.rows,
 check(T.isBlocked(P.x, P.y + 9), "grove field footprint is marked impassable")
 check(not T.isBlocked(P.x + 40, P.y + 9), "outside the grove field stays open")
 check(T.addEgg(P.x, P.y + 9) == nil, "eggs are not placed inside the grove field")
+local fieldBefore = blockers
+P.y = P.y + 8
+step(.05)
+local fieldAfter = 0
+for i = 1, #T.items do
+    if T.items[i].field then fieldAfter = fieldAfter + 1 end
+end
+check(fieldAfter == fieldBefore, "impact does not consume the grove field")
+check(not P.stunned and P.blockT > 0,
+    "the rider wades through the grove field slowly instead of stopping")
+
+io.write("trees are permanent and the rider walks through them\n")
+startFresh()
+local hpW = P.hp
+local treeW = Game.debugSpawnObstacle("tree", P.x, P.y)
+step(.05)
+check(P.hp == hpW - 1, "tree hit costs one heart")
+check(not P.stunned and P.blockT > 0,
+    "tree hit slows the rider instead of stunning")
+local yW = P.y
+steps(4, .05)
+check(P.y > yW, "the rider keeps moving slowly inside the tree")
+check(not treeW.dead and Host.entity.exists(treeW.id), "the tree stays in place")
+P.invulnT = 0; P.blockT = 0; P.chargeT = 1
+local chargedTree = Game.debugSpawnObstacle("tree", P.x, P.y)
+step(.05)
+check(not chargedTree.dead and Host.entity.exists(chargedTree.id),
+    "charge cannot destroy a tree")
+P.chargeT = 0
 
 startFresh()
 local bushHit = Game.debugSpawnObstacle("bush", P.x, P.y)

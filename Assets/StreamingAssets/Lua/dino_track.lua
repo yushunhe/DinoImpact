@@ -262,11 +262,17 @@ function T.reset(P)
 end
 
 -- ------------------------------------------------------------------ collisions
+local function isTreeBlock(it)
+    return it.field or it.kind == "tree"
+end
+
 local function hitObstacle(it, P)
     if it.mount then return end   -- 睡觉的恐龙：无害，径直路过（换乘走 J）
     if it.class == "block" then
         if P.chargeT > 0 then
-            -- 三角龙/甲龙技能：撞飞阻拦型障碍
+            -- 三角龙/甲龙技能：撞飞普通阻拦型障碍。
+            -- 树和小树林永远不消失，冲锋也只能穿过去。
+            if isTreeBlock(it) then return end
             it.dead = true
             fx.event("impact", it.x, it.y, 1)
             fx.sound(Config.juice.hurtSound, .4)
@@ -279,7 +285,15 @@ local function hitObstacle(it, P)
             fx.event("impact", it.x, it.y, 1)
             fx.shake(Config.juice.hurtShake, .25)
         end
-        -- 阻拦型障碍不消失，但把玩家沿法线推出，避免卡在碰撞体里
+        -- 树/小树林：不硬推出去，也不停跑。扣完这一下后保持无敌 + 减速，
+        -- 玩家自己（或自动）慢慢走出树冠，离开后恢复速度。
+        if isTreeBlock(it) and P.airborneT <= 0 and P.flyT <= 0 then
+            P.stunned = false
+            P.blockT = Config.run.treeHold
+            P:extendInvuln(Config.run.treeInvuln)
+            return
+        end
+        -- 其他阻拦型障碍不消失，但把玩家沿法线推出，避免卡在碰撞体里
         local d = U.dist(P.x, P.y, it.x, it.y)
         local rr = it.radius + P.radius
         if d < rr then
@@ -357,7 +371,8 @@ function T.update(dt, P)
     end
     local cullX = Config.world.cullX
     local i = 1
-    local deepest, deepestOver, deepestIndex = nil, 0, nil
+    local deepest, deepestOver = nil, 0
+    local treeOverlap = false
     while i <= #T.items do
         local it = T.items[i]
         local remove = it.dead or it.y < cull or it.y > P.y + S.ahead + 30
@@ -365,6 +380,9 @@ function T.update(dt, P)
             or not Host.entity.exists(it.id)
 
         if not remove then
+            local overlap = U.dist2(P.x, P.y, it.x, it.y)
+                < (P.radius + it.radius) ^ 2
+            if overlap and isTreeBlock(it) then treeOverlap = true end
             if it.type == "mount" and it.zzz and Host.entity.exists(it.zzz) then
                 Host.entity.setPos(it.zzz, it.x, it.y + 1.1 + math.sin(now * 2 + it.y) * .08, -.4)
             end
@@ -377,7 +395,7 @@ function T.update(dt, P)
                 it.y = dy
                 Host.entity.setPos(it.id, it.x, dy, 0)
             end
-            if U.dist2(P.x, P.y, it.x, it.y) < (P.radius + it.radius) ^ 2 then
+            if overlap then
                 if it.type == "egg" then
                     it.dead = true
                     remove = true
@@ -403,7 +421,7 @@ function T.update(dt, P)
                     local over = rr * rr
                         - U.dist2(P.x, P.y, it.x, it.y)
                     if over > deepestOver then
-                        deepest, deepestOver, deepestIndex = it, over, i
+                        deepest, deepestOver = it, over
                     end
                 end
             end
@@ -422,8 +440,17 @@ function T.update(dt, P)
         hitObstacle(deepest, P)
         if deepest.dead then
             if Host.entity.exists(deepest.id) then Host.entity.kill(deepest.id) end
-            table.remove(T.items, deepestIndex)
+            -- 按对象本身删除：循环里可能已经删过其他 item，索引会变
+            for k = #T.items, 1, -1 do
+                if T.items[k] == deepest then table.remove(T.items, k); break end
+            end
         end
+    end
+    -- 还在树/小树林里：保持无敌 + 减速，直到真正走出去
+    if treeOverlap and P.alive and P.airborneT <= 0 and P.flyT <= 0
+        and P.chargeT <= 0 then
+        P.blockT = Config.run.treeHold
+        P.invulnT = math.max(P.invulnT, Config.run.treeInvuln)
     end
     Dino.update(dt, P, T)
 end

@@ -62,7 +62,7 @@ dotnet build Assembly-CSharp-Editor.csproj # 编辑器脚本（打包菜单）
 
 - 五档朝向 `C.heading.angleDeg`（±48°/±20°/0）；W 归中。按键（1113 反馈版）：**S 按住=停止前进**（干扰龙仍会就近上门，见 `T.brakeT`）、**J 射箭**、**K 换乘**、Space 技能；没有跳跃键；暂停用 Esc/P。
 - **没有空气墙**：横向可无限远。内容跟着预测路线走：所有行以 `P:futureX(y)`（沿当前朝向精确投影）为锚点生成；`C.spawn.anchorLimit=36` 和 `C.world.cullX=44` 都是**相对玩家**的存在性裁剪，不是墙。改生成逻辑时别把内容锚回旧坐标 `P.x`（会重现“两边空荡荡”bug）。
-- 受击模型：停跑 + 无敌闪烁，任意 A/W/D 按键恢复并按下即转向（1.2.2）。测试里用 `resumeSteps` 模拟这个行为。障碍碰撞**每帧只结算重叠最深的一个**（`T.update` 里的 deepest 选择）——障碍判定圈放大后，逐条法线推出会互相抵消把玩家永久卡死，改这块别退回去。
+- 受击模型：停跑 + 无敌闪烁，任意 A/W/D 按键恢复并按下即转向（1.2.2）。测试里用 `resumeSteps` 模拟这个行为。**树和小树林例外**：不进入停顿、不做硬推出，扣 1 心后保持无敌 + 减速（`C.run.treeSlow/treeHold/treeInvuln`），玩家慢慢走出树冠后恢复；它们也不会被冲锋撞掉。障碍碰撞**每帧只结算重叠最深的一个**（`T.update` 里的 deepest 选择）——障碍判定圈放大后，逐条法线推出会互相抵消把玩家永久卡死，改这块别退回去。
 - Lua 坑：`function P.foo()` 点号定义却 `P:foo()` 冒号调用会把表自身传成第一个参数；`U.rad` 是常量不是函数。
 - Canvas API（C#）：`Rect` 要 int、`Ellipse/Triangle` 要 float——CS1503 常见来源。
 - 小树林大区域（`C.groveField`）：跑道上每 150~260 单位生成一片 3×2 的 `grove`，每棵都是阻拦障碍且碰撞圈互相重叠，整片不可通行；普通生成器用 `T.isBlocked()` 跳过区域内，避免蛋/果实被埋进树林。撞边同阻拦障碍（扣 1 心 + 推出）。调试：`Game.debugSpawnGroveField(x,y)`。

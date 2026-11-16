@@ -34,6 +34,7 @@ local P = {
     airborneT = 0, airMax = 0, flyT = 0, flyMax = 0,
     chargeT = 0, boostSkillT = 0, boostSkillMul = 1, pushT = 0,
     effectCd = 0,
+    blockT = 0,           -- 在树/小树林里缓慢无敌移动（track 每帧续）
 
     -- archery (1.2.3)
     arrows = A.max, arrowT = 0,
@@ -66,6 +67,7 @@ local function currentSpeed()
     if P.boostT > 0 then mul = mul * E.boostMul end
     if P.boostSkillT > 0 then mul = mul * P.boostSkillMul end
     if P.pushT > 0 then mul = mul * E.jumpPush end
+    if P.blockT > 0 then mul = mul * R.treeSlow end
     return cruise() * mul
 end
 
@@ -150,6 +152,7 @@ function P.reset()
     P.slowT, P.boostT, P.confuseT = 0, 0, 0
     P.airborneT, P.airMax, P.flyT, P.flyMax, P.chargeT = 0, 0, 0, 0, 0
     P.boostSkillT, P.boostSkillMul, P.pushT = 0, 1, 0
+    P.blockT = 0
     P.effectCd = 0
     P.arrows, P.arrowT = A.max, 0
     P.braking, P.shotSpread, P.fxT = false, false, 0
@@ -331,7 +334,9 @@ function P.update(dt)
     P.chargeT = dec(P.chargeT)
     P.boostSkillT = dec(P.boostSkillT)
     P.pushT = dec(P.pushT)
+    P.blockT = dec(P.blockT)
     P.effectCd = dec(P.effectCd)
+    if P.blockT > 0 then P.invulnT = math.max(P.invulnT, R.treeInvuln) end
     if P.stunned then P.invulnT = math.max(P.invulnT, R.postHit) end
 
     -- arrow regen (max 3 stored)

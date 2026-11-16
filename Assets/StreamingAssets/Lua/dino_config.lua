@@ -39,6 +39,10 @@ C.run = {
     invuln     = .9,    -- minimum invulnerability after losing a heart
     postHit    = 1.0,   -- 1113 反馈：碰撞判定结束后追加的无敌缓冲
     blinkRate  = .09,   -- sprite flicker period while invulnerable
+    -- 撞进树/小树林：不进入停顿，无敌并降速，直到走出树冠
+    treeSlow   = .35,   -- 在树上/树林里时的前进速度倍率
+    treeHold   = .18,   -- 离开后仍保持减速的时间，防止边界抖动
+    treeInvuln = .25,   -- 在树里每帧续的无敌时间
 }
 
 -- 1.2.3 archery: max 3 stored arrows, one refills every regen seconds.
