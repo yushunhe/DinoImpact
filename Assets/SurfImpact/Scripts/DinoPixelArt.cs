@@ -37,7 +37,7 @@ namespace DinoImpact
                      name == "grass_tuft" || name == "mud" || name == "footprint" ||
                      name == "mushroom" || name == "spring" || name == "poop")
                 pivot = new Vector2(.5f, .3f);
-            // PlantsPixelIt 素材（Assets/Resources/Dino/*.png 落地后自动替换程序版）：
+            // 植被素材（Assets/Resources/Dino/*.png，来源 Assets/Art/gemini）：
             // 世界高度按这张表归一（PPU 反推），锚点在底边中心=触地点。
             else if (PlantUnits(name, out float units))
             {
@@ -54,23 +54,24 @@ namespace DinoImpact
         }
 
         // World-space height each plant PNG gets normalized to (units).
-        // tree ~1.5x the rider's dino; the rest scatter as plain detail.
+        // The tree is ~2.5x the rider's dino so its frond structure reads
+        // at the gameplay camera distance; the rest scale up proportionally.
         static bool PlantUnits(string name, out float units)
         {
             switch (name)
             {
-                case "tree":            units = 4.5f; return true;   // tree fern
-                case "palm":            units = 2.2f; return true;
-                case "bush":            units = 1.2f; return true;   // shrub
-                case "cycad":           units = 1.3f; return true;
-                case "fern":            units = 1.0f; return true;
-                case "fern_frond":      units = 0.9f; return true;
-                case "flower":          units = 0.9f; return true;   // clubmoss
-                case "clubmoss_small":  units = 0.6f; return true;
-                case "horsetail":       units = 1.2f; return true;
-                case "horsetail_cone":  units = 1.0f; return true;
-                case "crown":           units = 1.0f; return true;
-                case "crown_small":     units = 0.65f; return true;
+                case "tree":            units = 6.5f; return true;   // tree
+                case "palm":            units = 3.2f; return true;
+                case "bush":            units = 2.0f; return true;   // shrub
+                case "cycad":           units = 2.4f; return true;
+                case "fern":            units = 1.8f; return true;
+                case "fern_frond":      units = 1.3f; return true;
+                case "flower":          units = 1.2f; return true;   // clubmoss
+                case "clubmoss_small":  units = 0.9f; return true;
+                case "horsetail":       units = 1.8f; return true;
+                case "horsetail_cone":  units = 1.4f; return true;
+                case "crown":           units = 1.3f; return true;
+                case "crown_small":     units = 0.9f; return true;
                 default:                units = 0f;   return false;
             }
         }
@@ -92,8 +93,10 @@ namespace DinoImpact
                 case "fern": return Fern();
                 case "flower": return Flower();
                 case "pebble": return Pebble();
-                case "ground_grass": return GroundTile(false);
-                case "ground_path": return GroundTile(true);
+                case "ground_grass": return GroundGrass();
+                case "ground_fern": return GroundFern();
+                case "ground_swamp": return GroundSwamp();
+                case "ground_path": return GroundPath();
                 case "rider": return Rider();
                 case "zzz": return Zzz();
                 case "arrow": return ArrowArt();
@@ -266,7 +269,7 @@ namespace DinoImpact
 
         static Sprite Log()
         {
-            // Palette follows the PlantsPixelIt tree fern: bark browns like the
+            // Palette follows the prehistoric flora set: bark browns like the
             // trunk (#8B5A2B family), 1-px dark-green outline like every plant,
             // moss dabs in the canopy greens - a fallen log that sits in this
             // flora set ("地上的木头也参考这套素材").
@@ -798,57 +801,365 @@ namespace DinoImpact
 
         // ------------------------------------------------------------------ ground
 
-        static Sprite GroundTile(bool path)
+        // Ground tiles are pixel recreations of the three reference biomes:
+        // grass (the everywhere default), fern ground (a lighter, rosette-covered
+        // grass) and swamp (dark teal pools with mint glints). Everything wraps
+        // at the 32 px tile border so the repeating texture has no seams.
+        const int GroundTileSize = 32;
+
+        static Sprite GroundGrass()
         {
-            var c = new Canvas(32, 32);
-            Color32 baseCol = path ? Hex("#6B5530") : Hex("#3B692C");
-            Color32 dark = path ? Hex("#5B4728") : Hex("#315B26");
-            Color32 mid = path ? Hex("#7A6238") : Hex("#457732");
-            Color32 light = path ? Hex("#8D7444") : Hex("#5A8C3D");
+            var c = new Canvas(GroundTileSize, GroundTileSize);
+            var rng = new Rng(0x85EBCA6Bu);
+            Color32 baseCol = Hex("#4C7A2B");
+            Color32 dark = Hex("#3E6A2B");
+            Color32 deep = Hex("#2D5428");
+            Color32 mid = Hex("#56842B");
+            // Keep the field readable without bright speckles that look like
+            // white dots once the 32 px tile is repeated across the screen.
+            Color32 light = Hex("#5C872C");
+            Color32 pale = Hex("#6A9134");
+            c.Rect(0, 0, GroundTileSize, GroundTileSize, baseCol);
 
-            for (int y = 0; y < 32; y++)
-                for (int x = 0; x < 32; x++)
-                    c.Set(x, y, baseCol);
+            // fine mottled speckle (the reference grass is noisy at pixel scale)
+            for (int i = 0; i < 190; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 1);
+                int roll = rng.Range(0, 11);
+                Color32 col = roll < 6 ? dark : roll < 10 ? mid : light;
+                TSet(c, x, y, col);
+            }
 
-            uint seed = path ? 0x9E3779B9u : 0x85EBCA6Bu;
+            // soft darker clumps a few pixels across
+            for (int i = 0; i < 9; i++)
+            {
+                float x = rng.Range(0f, GroundTileSize);
+                float y = rng.Range(0f, GroundTileSize);
+                float rx = rng.Range(1.4f, 3.6f);
+                float ry = rng.Range(1.1f, 2.6f);
+                TEllipse(c, x, y, rx, ry, dark);
+                TEllipse(c, x - .6f, y + .8f, rx * .45f, ry * .45f, deep);
+            }
+
+            // short light blades scattered through the field
+            for (int i = 0; i < 10; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 1);
+                TSet(c, x, y, light);
+                if (rng.Float() < .45f) TSet(c, x, y + 1, pale);
+            }
+
+            // reference tuft row: dark blades standing along the bottom edge
+            for (int i = 0; i < 12; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int h = rng.Range(2, 6);
+                int lean = rng.Range(-1, 1);
+                Color32 col = rng.Float() < .55f ? deep : dark;
+                for (int k = 0; k < h; k++)
+                {
+                    int xx = x + Mathf.RoundToInt(lean * (k / (float)h));
+                    TSet(c, xx, k, col);
+                    if (k > 1 && rng.Float() < .3f) TSet(c, xx + 1, k, mid);
+                }
+            }
+            return GroundSprite(c, "ground_grass");
+        }
+
+        static Sprite GroundFern()
+        {
+            var c = new Canvas(GroundTileSize, GroundTileSize);
+            var rng = new Rng(0x27D4EB2Fu);
+            Color32 baseCol = Hex("#4A7A2B");
+            Color32 dark = Hex("#3A6228");
+            Color32 deep = Hex("#2A4B26");
+            Color32 mid = Hex("#56842B");
+            Color32 light = Hex("#6C9634");
+            Color32 fernDark = Hex("#22411F");
+            Color32 fernMid = Hex("#2C4D2A");
+            Color32 fernLight = Hex("#3E6A2C");
+            Color32 spore = Hex("#C0A047");
+            Color32 sporeLit = Hex("#E0C675");
+            c.Rect(0, 0, GroundTileSize, GroundTileSize, baseCol);
+
+            for (int i = 0; i < 150; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 1);
+                int roll = rng.Range(0, 10);
+                TSet(c, x, y, roll < 4 ? dark : roll < 7 ? mid : roll < 9 ? light : deep);
+            }
+            for (int i = 0; i < 6; i++)
+            {
+                float x = rng.Range(0f, GroundTileSize);
+                float y = rng.Range(0f, GroundTileSize);
+                TEllipse(c, x, y, rng.Range(1.2f, 3f), rng.Range(1f, 2.2f), dark);
+            }
+
+            // fern rosettes: a dark disc with radiating fronds and small leaflets
+            for (int f = 0; f < 5; f++)
+            {
+                float cx = rng.Range(1f, GroundTileSize - 1f);
+                float cy = rng.Range(3f, GroundTileSize - 3f);
+                float r = rng.Range(3.2f, 5.2f);
+                TEllipse(c, cx, cy, r * .8f, r * .62f, fernDark);
+                for (int b = 0; b < 7; b++)
+                {
+                    float a = (b / 7f) * Mathf.PI * 2f + rng.Range(-.12f, .12f);
+                    float len = r * rng.Range(.72f, 1f);
+                    float ex = cx + Mathf.Cos(a) * len;
+                    float ey = cy + Mathf.Sin(a) * len * .78f;
+                    TLine(c, cx, cy, ex, ey, b % 2 == 0 ? fernMid : fernLight);
+                    for (int s = 2; s < (int)len; s += 2)
+                    {
+                        float t = s / len;
+                        float lx = Mathf.Lerp(cx, ex, t);
+                        float ly = Mathf.Lerp(cy, ey, t);
+                        float off = 1.1f * (1f - t) + .35f;
+                        TSet(c, Mathf.RoundToInt(lx + Mathf.Cos(a + 1.2f) * off),
+                            Mathf.RoundToInt(ly + Mathf.Sin(a + 1.2f) * off * .7f), fernDark);
+                        TSet(c, Mathf.RoundToInt(lx - Mathf.Cos(a + 1.2f) * off),
+                            Mathf.RoundToInt(ly - Mathf.Sin(a + 1.2f) * off * .7f), fernDark);
+                    }
+                }
+                // gold spore clusters
+                if (rng.Float() < .6f)
+                {
+                    int sx = Mathf.RoundToInt(cx + rng.Range(-1f, 1f));
+                    int sy = Mathf.RoundToInt(cy + rng.Range(0f, 2f));
+                    TSet(c, sx, sy, spore);
+                    TSet(c, sx + 1, sy + 1, sporeLit);
+                    if (rng.Float() < .5f) TSet(c, sx, sy + 1, sporeLit);
+                }
+            }
+
+            // taller blade row along the bottom edge (reference B1)
+            for (int i = 0; i < 16; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int h = rng.Range(3, 8);
+                int lean = rng.Range(-1, 1);
+                Color32 col = rng.Float() < .5f ? deep : mid;
+                for (int k = 0; k < h; k++)
+                {
+                    int xx = x + Mathf.RoundToInt(lean * (k / (float)h));
+                    TSet(c, xx, k, col);
+                    if (k > 2 && rng.Float() < .25f) TSet(c, xx, k + 1, light);
+                }
+            }
+            return GroundSprite(c, "ground_fern");
+        }
+
+        static Sprite GroundSwamp()
+        {
+            var c = new Canvas(GroundTileSize, GroundTileSize);
+            var rng = new Rng(0x9E3779B9u);
+            Color32 baseCol = Hex("#3D5241");
+            Color32 darkMoss = Hex("#314740");
+            Color32 moss = Hex("#435C45");
+            Color32 mossLit = Hex("#4E684D");
+            Color32 water = Hex("#2D3C3C");
+            Color32 waterDeep = Hex("#212F30");
+            Color32 rim = Hex("#19262A");
+            Color32 mint = Hex("#79A7A7");
+            Color32 mintLit = Hex("#8AB2B1");
+            Color32 blue = Hex("#4A6B72");
+            Color32 blueLit = Hex("#76A7AC");
+            Color32 reed = Hex("#6B8A52");
+            c.Rect(0, 0, GroundTileSize, GroundTileSize, baseCol);
+
+            // mossy, silty mottling
+            for (int i = 0; i < 170; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 1);
+                int roll = rng.Range(0, 12);
+                Color32 col = roll < 4 ? darkMoss : roll < 7 ? moss
+                    : roll < 9 ? mossLit : roll < 11 ? mint : blue;
+                TSet(c, x, y, col);
+            }
+            for (int i = 0; i < 10; i++)
+            {
+                float x = rng.Range(0f, GroundTileSize);
+                float y = rng.Range(0f, GroundTileSize);
+                TEllipse(c, x, y, rng.Range(1.2f, 3.2f), rng.Range(1f, 2.4f),
+                    rng.Float() < .6f ? darkMoss : moss);
+            }
+
+            // murky pools: dark core, black rim, mint/blue glints along the edge
+            for (int i = 0; i < 3; i++)
+            {
+                float cx = rng.Range(2f, GroundTileSize - 2f);
+                float cy = rng.Range(2f, GroundTileSize - 2f);
+                float rx = rng.Range(3.2f, 6.4f);
+                float ry = rng.Range(2.2f, 4.4f);
+                TEllipse(c, cx, cy, rx + .8f, ry + .8f, rim);
+                TEllipse(c, cx, cy, rx, ry, waterDeep);
+                TEllipse(c, cx - .8f, cy + .8f, rx * .66f, ry * .6f, water);
+                for (int g = 0; g < 8; g++)
+                {
+                    float a = rng.Range(0f, Mathf.PI * 2f);
+                    float d = rng.Range(.55f, .95f);
+                    int gx = Mathf.RoundToInt(cx + Mathf.Cos(a) * rx * d);
+                    int gy = Mathf.RoundToInt(cy + Mathf.Sin(a) * ry * d);
+                    TSet(c, gx, gy, rng.Float() < .6f ? mint : blue);
+                    if (rng.Float() < .4f)
+                        TSet(c, gx + 1, gy, rng.Float() < .5f ? mintLit : blueLit);
+                }
+                for (int g = 0; g < 3; g++)
+                    TSet(c, Mathf.RoundToInt(cx + rng.Range(-rx * .4f, rx * .4f)),
+                        Mathf.RoundToInt(cy + rng.Range(-ry * .4f, ry * .4f)), moss);
+            }
+
+            // a few reed stems
+            for (int i = 0; i < 7; i++)
+            {
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 6);
+                int h = rng.Range(2, 4);
+                for (int k = 0; k < h; k++) TSet(c, x, y + k, reed);
+                TSet(c, x, y + h, mossLit);
+                if (rng.Float() < .4f) TSet(c, x + 1, y + 1, darkMoss);
+            }
+            return GroundSprite(c, "ground_swamp");
+        }
+
+        static Sprite GroundPath()
+        {
+            var c = new Canvas(GroundTileSize, GroundTileSize);
+            var rng = new Rng(0x9E3779B9u);
+            Color32 baseCol = Hex("#6B5530");
+            Color32 dark = Hex("#5B4728");
+            Color32 light = Hex("#8D7444");
+            c.Rect(0, 0, GroundTileSize, GroundTileSize, baseCol);
             for (int i = 0; i < 90; i++)
             {
-                seed = seed * 1664525u + 1013904223u;
-                int x = (int)(seed % 32u);
-                seed = seed * 1664525u + 1013904223u;
-                int y = (int)(seed % 32u);
-                c.Set(x, y, (i % 3 == 0) ? light : dark);
+                int x = rng.Range(0, GroundTileSize - 1);
+                int y = rng.Range(0, GroundTileSize - 1);
+                TSet(c, x, y, i % 3 == 0 ? light : dark);
             }
-
-            if (!path)
+            for (int i = 0; i < 5; i++)
             {
-                for (int i = 0; i < 7; i++)
-                {
-                    seed = seed * 1664525u + 1013904223u;
-                    int x = 2 + (int)(seed % 28u);
-                    seed = seed * 1664525u + 1013904223u;
-                    int y = 2 + (int)(seed % 28u);
-                    c.Rect(x, y, 1, 3, mid);
-                    c.Rect(x - 1, y + 1, 1, 1, light);
-                    c.Rect(x + 1, y + 2, 1, 1, light);
-                }
+                float x = rng.Range(0f, GroundTileSize);
+                float y = rng.Range(0f, GroundTileSize);
+                TEllipse(c, x, y, 1.8f, 1.3f, Hex("#4E3E23"));
+                TEllipse(c, x - .5f, y + .5f, .9f, .6f, light);
             }
-            else
-            {
-                for (int i = 0; i < 5; i++)
-                {
-                    seed = seed * 1664525u + 1013904223u;
-                    int x = 3 + (int)(seed % 24u);
-                    seed = seed * 1664525u + 1013904223u;
-                    int y = 3 + (int)(seed % 24u);
-                    c.Ellipse(x, y, 1.8f, 1.3f, path ? Hex("#4E3E23") : Hex("#2B4F22"));
-                    c.Ellipse(x - .5f, y + .5f, .9f, .6f, light);
-                }
-            }
+            return GroundSprite(c, "ground_path");
+        }
 
-            Sprite s = c.ToSprite(path ? "ground_path" : "ground_grass", 16f, new Vector2(.5f, .5f));
+        static Sprite GroundSprite(Canvas c, string name)
+        {
+            Sprite s = c.ToSprite(name, 16f, new Vector2(.5f, .5f));
             s.texture.wrapMode = TextureWrapMode.Repeat;
             return s;
+        }
+
+        // ------------------------------------------------------------- terrain patches
+
+        static readonly Dictionary<string, Texture2D> PatchCache = new Dictionary<string, Texture2D>();
+
+        /// <summary>
+        /// Builds a one-off patch texture: the tiling biome texture repeated over
+        /// tilesX x tilesY tiles, with a pixel-dithered organic border so the
+        /// patch fades into the grass instead of reading as a rectangle.
+        /// </summary>
+        public static Texture2D GroundPatch(string kind, int tilesX, int tilesY, int variant)
+        {
+            if (kind != "fern" && kind != "swamp") kind = "fern";
+            tilesX = Mathf.Clamp(tilesX, 1, 12);
+            tilesY = Mathf.Clamp(tilesY, 1, 12);
+            variant &= 3;
+            string key = kind + ":" + tilesX + "x" + tilesY + ":" + variant;
+            if (PatchCache.TryGetValue(key, out Texture2D cached)) return cached;
+
+            Sprite tile = Get("ground_" + kind);
+            Color32[] src = tile.texture.GetPixels32();
+            int tw = tile.texture.width;
+            int th = tile.texture.height;
+            int w = tw * tilesX;
+            int h = th * tilesY;
+            var px = new Color32[w * h];
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                    px[y * w + x] = src[(y % th) * tw + (x % tw)];
+
+            // Ragged edge: keep probability rises with distance from the border,
+            // so the fringe is a scattered pixel dissolve rather than a fade.
+            uint seed = (uint)(variant * 0x9E3779B9 + tilesX * 7919 + tilesY * 104729
+                + (kind == "swamp" ? 17 : 0));
+            var rng = new Rng(seed);
+            int edge = Mathf.Max(4, Mathf.Min(w, h) / 7);
+            for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    int d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y));
+                    if (d >= edge) continue;
+                    float t = d / (float)edge;
+                    if (rng.Float() > t * t) px[y * w + x].a = 0;
+                }
+
+            var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
+            {
+                name = "terrain_" + key,
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp,
+            };
+            tex.SetPixels32(px);
+            tex.Apply(false, false);
+            PatchCache[key] = tex;
+            return tex;
+        }
+
+        // ------------------------------------------------ tile helpers (wrapping)
+
+        static void TSet(Canvas c, int x, int y, Color32 col)
+        {
+            x %= GroundTileSize; if (x < 0) x += GroundTileSize;
+            y %= GroundTileSize; if (y < 0) y += GroundTileSize;
+            c.Set(x, y, col);
+        }
+
+        static void TEllipse(Canvas c, float cx, float cy, float rx, float ry, Color32 col)
+        {
+            if (rx <= 0f || ry <= 0f) return;
+            for (int y = Mathf.FloorToInt(cy - ry); y <= Mathf.CeilToInt(cy + ry); y++)
+                for (int x = Mathf.FloorToInt(cx - rx); x <= Mathf.CeilToInt(cx + rx); x++)
+                {
+                    float dx = (x + .5f - cx) / rx;
+                    float dy = (y + .5f - cy) / ry;
+                    if (dx * dx + dy * dy <= 1f) TSet(c, x, y, col);
+                }
+        }
+
+        static void TLine(Canvas c, float x0, float y0, float x1, float y1, Color32 col)
+        {
+            int steps = Mathf.CeilToInt(Mathf.Max(Mathf.Abs(x1 - x0), Mathf.Abs(y1 - y0)));
+            if (steps <= 0)
+            {
+                TSet(c, Mathf.RoundToInt(x0), Mathf.RoundToInt(y0), col);
+                return;
+            }
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = i / (float)steps;
+                TSet(c, Mathf.RoundToInt(Mathf.Lerp(x0, x1, t)),
+                    Mathf.RoundToInt(Mathf.Lerp(y0, y1, t)), col);
+            }
+        }
+
+        // Small deterministic LCG so every tile/patch is identical per seed in
+        // both the editor and a player build.
+        struct Rng
+        {
+            uint _s;
+            public Rng(uint seed) { _s = seed == 0u ? 1u : seed; }
+            public uint Next() { _s = _s * 1664525u + 1013904223u; return _s; }
+            public float Float() { return (Next() >> 8) * (1f / 16777216f); }
+            public float Range(float a, float b) { return a + (b - a) * Float(); }
+            public int Range(int a, int b) { return a + (int)(Next() % (uint)(b - a + 1)); }
         }
 
         static Sprite Missing()

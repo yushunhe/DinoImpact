@@ -21,6 +21,8 @@ function M.new()
     end
 
     local host = {}
+    local terrain = {}
+    local nextTerrainId = 1
     host.time = function() return now end
     host.log = function(s) io.write("[lua] " .. tostring(s) .. "\n") end
 
@@ -105,6 +107,25 @@ function M.new()
         setWeather = noop,
         event = noop,
         splash = noop,
+    }
+
+    host.terrain = {
+        add = function(kind, x, y, w, h, variant)
+            local id = nextTerrainId
+            nextTerrainId = nextTerrainId + 1
+            terrain[id] = {
+                id = id, kind = kind, x = x, y = y, w = w, h = h, variant = variant,
+            }
+            return id
+        end,
+        kill = function(id) terrain[id] = nil end,
+        clear = function() terrain = {} end,
+        count = function()
+            local n = 0
+            for _ in pairs(terrain) do n = n + 1 end
+            return n
+        end,
+        exists = function(id) return terrain[id] ~= nil end,
     }
 
     host.camera = {
@@ -204,6 +225,7 @@ function M.new()
         fade = function() return fade end,
         vignette = function() return vignette end,
         camera = function() return camera end,
+        terrain = function() return terrain end,
         save = function() return save end,
         click = function(name)
             local b = buttons[name]

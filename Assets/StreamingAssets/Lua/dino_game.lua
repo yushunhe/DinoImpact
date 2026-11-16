@@ -254,6 +254,12 @@ function Game.debugSpawnMount(key, x, y)
     return T.addSleepDino(key or "trike", x or (P.x + 1), y or (P.y + 1))
 end
 
+-- Terrain biome patch for eyeballing in the editor: kind = "fern" | "swamp".
+function Game.debugSpawnTerrain(kind, x, y, w, h)
+    return Host.terrain.add(kind or "fern", x or P.x, y or (P.y + 8),
+        w or 8, h or 8, 0)
+end
+
 function Game.debugSpawnEnemy(kind, x, y)
     Dino.spawnEvent(kind, P, y or (P.y + 1))
     -- for tests: reposition the last spawned event exactly where asked
