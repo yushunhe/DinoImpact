@@ -246,6 +246,11 @@ function Game.debugSpawnObstacle(kind, x, y)
     return T.addObstacle(kind or "rock", x or P.x, y or (P.y + 1))
 end
 
+-- 不可通行的小树林大区域（由多棵 grove 拼成）。
+function Game.debugSpawnGroveField(x, y)
+    return T.spawnGroveField(x or (P.x + 4), y or (P.y + 10))
+end
+
 function Game.debugSpawnEgg(x, y)
     return T.addEgg(x or P.x, y or (P.y + 1))
 end

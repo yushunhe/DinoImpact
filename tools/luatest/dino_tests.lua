@@ -226,6 +226,20 @@ local tree = Game.debugSpawnObstacle("tree", P.x + 1.2, P.y)
 step(.05)
 check(P.hp == hpTree - 1, "the tree damages the player")
 check(not tree.dead and Host.entity.exists(tree.id), "blocking trees stay after impact")
+
+io.write("grove field landmark\n")
+startFresh()
+local field = T.spawnGroveField(P.x, P.y + 8)
+local blockers = 0
+for i = 1, #T.items do
+    if T.items[i].field then blockers = blockers + 1 end
+end
+check(blockers == Config.groveField.cols * Config.groveField.rows,
+    "grove field spawns a full grid of blocking groves")
+check(T.isBlocked(P.x, P.y + 9), "grove field footprint is marked impassable")
+check(not T.isBlocked(P.x + 40, P.y + 9), "outside the grove field stays open")
+check(T.addEgg(P.x, P.y + 9) == nil, "eggs are not placed inside the grove field")
+
 startFresh()
 local bushHit = Game.debugSpawnObstacle("bush", P.x, P.y)
 step(.05)

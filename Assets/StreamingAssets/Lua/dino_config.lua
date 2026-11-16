@@ -156,6 +156,25 @@ C.spawn = {
     brakeEventGap = { 3.5, 6 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
 
+-- 小树林大区域：跑道中的不可通行地标（参考 edgesurf 的礁石群）。
+-- 由若干 grove sprite 拼成，每棵 grove 都是阻拦障碍；碰撞圈互相重叠，
+-- 整片区域没有可钻的缝，玩家只能从左边或右边绕过去。
+C.groveField = {
+    firstAt = 90,          -- 第一个区域离起点的距离（世界单位）
+    gapMin = 150,          -- 两个区域之间的最小距离
+    gapMax = 260,
+    cols = 3,
+    rows = 2,
+    spacingX = 4.6,        -- 相邻 grove 中心间距（碰撞圈必须重叠）
+    spacingY = 4.5,
+    jitter = .6,
+    scaleMin = 1.0,
+    scaleMax = 1.2,
+    radius = 3.9,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
+    offset = 5,            -- 区域中心相对预测路线的横向偏移
+    sprites = { "grove", "grove_2", "grove_3", "grove_4" },
+}
+
 -- 换乘判定（1.2.7 调整版 + 1113 反馈）：睡觉恐龙不伤害玩家、可被射杀；
 -- 进入 range 即出绳索提示，按 K 就能换（不看朝向）。
 C.mount = {

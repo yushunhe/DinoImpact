@@ -53,6 +53,10 @@ world placement can pick one at random for variety.
 
 Preview: tools/art/preview/grove_preview.png
 
+The impassable landmark field (C.groveField in dino_config.lua) arranges a
+3x2 grid of these groves into one large blocked area. Preview of the assembled
+field: tools/art/preview/grove_field_preview.png
+
 The dino_* files in this folder are generated white-feathered Ornithomimus
 frames with a hide-clad rider and quiver (46x56, Pixels Per Unit 22, pivot at
 the feet). Regenerate them with:

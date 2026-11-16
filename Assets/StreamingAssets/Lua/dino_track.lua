@@ -8,12 +8,15 @@ local U = require("util")
 local fx = require("fx")
 
 local S = Config.spawn
+local GF = Config.groveField
 
 local T = {
     items = {},          -- obstacles / items / sleeping dinos
+    fields = {},         -- 小树林大区域的不可通行范围
     nextObstacle = 0,
     nextEgg = 0,
     nextEnemy = 0,
+    nextGrove = 0,
     brakeT = 0,          -- 刹车时干扰龙的上门计时（1113）
 }
 
@@ -44,10 +47,12 @@ local function addItem(sprKey, x, y, itemType)
 end
 
 function T.addEgg(x, y)
+    if T.isBlocked(x, y) then return nil end
     return addItem("egg", x, y, "egg")
 end
 
 function T.addFruit(kind, x, y)
+    if T.isBlocked(x, y) then return nil end
     return addItem(kind, x, y, "fruit")
 end
 
@@ -76,6 +81,70 @@ function T.addSleepDino(mountKey, x, y)
 end
 
 -- ------------------------------------------------------------------ spawning
+
+local function removeItemAt(i)
+    local it = T.items[i]
+    if it.id and Host.entity.exists(it.id) then Host.entity.kill(it.id) end
+    if it.zzz and Host.entity.exists(it.zzz) then Host.entity.kill(it.zzz) end
+    if it.ring and Host.entity.exists(it.ring) then Host.entity.kill(it.ring) end
+    table.remove(T.items, i)
+end
+
+-- 小树林大区域：整片区域不可通行。普通生成器在区域范围内不再放蛋/果实/
+-- 障碍，玩家只能绕行；区域由多棵 grove 组成，每棵都是阻拦障碍。
+function T.isBlocked(x, y)
+    for i = 1, #T.fields do
+        local f = T.fields[i]
+        if math.abs(x - f.x) <= f.hw
+            and y >= f.y - 1 and y <= f.y + f.depth + 1 then
+            return true
+        end
+    end
+    return false
+end
+
+function T.spawnGroveField(cx, y)
+    local c = GF
+    -- 横向范围要盖住最外侧 grove 的碰撞圈（中心偏移 + jitter + 半径），
+    -- 纵向范围要盖住整片树冠，避免蛋/果实生成在树冠里。
+    local halfW = (c.cols - 1) * c.spacingX * .5 + c.jitter
+        + 3.5 * c.scaleMax + .5
+    local depth = (c.rows - 1) * c.spacingY + 7.2 * c.scaleMax
+
+    -- 清掉已经生成在区域里的可拾取物和普通障碍，避免蛋/换乘点被埋进
+    -- 不可达的树林；睡觉恐龙（换乘点）保留，它本身无害。
+    for i = #T.items, 1, -1 do
+        local it = T.items[i]
+        if not it.field and it.type ~= "mount" and it.x
+            and math.abs(it.x - cx) <= halfW + 1
+            and it.y >= y - 1 and it.y <= y + depth + 1 then
+            removeItemAt(i)
+        end
+    end
+
+    T.fields[#T.fields + 1] = { x = cx, y = y, hw = halfW, depth = depth }
+
+    -- 后排先画、前排压在上面；所有碰撞圈互相重叠，保证没有缝。
+    for row = c.rows, 1, -1 do
+        for col = 1, c.cols do
+            local sc = c.scaleMin + math.random() * (c.scaleMax - c.scaleMin)
+            local x = cx + (col - (c.cols + 1) * .5) * c.spacingX
+                + (math.random() * 2 - 1) * c.jitter
+            local yy = y + (row - 1) * c.spacingY
+                + (math.random() * 2 - 1) * c.jitter * .5
+            local sprite = U.choice(c.sprites)
+            local id = Host.entity.new(sprite, x, yy, 0)
+            Host.entity.setScale(id, sc, sc, 1)
+            T.items[#T.items + 1] = {
+                type = "obstacle", kind = sprite, class = "block", low = false,
+                x = x, y = yy, radius = c.radius * sc, id = id, dead = false,
+                field = true,
+            }
+        end
+    end
+    return T.fields[#T.fields]
+end
+
 local function eggNear(x, y)
     for i = 1, #T.items do
         local it = T.items[i]
@@ -136,18 +205,23 @@ local function spawnObstacleRow(P, y)
     -- 睡觉的恐龙：换乘点（也当阻拦物处理）
     if U.chance(S.sleepChance) then
         local key = U.choice(Data.mountOrder)
-        T.addSleepDino(key, cx + (math.random() * 2 - 1) * 3.5, y)
+        local sx = cx + (math.random() * 2 - 1) * 3.5
+        if not T.isBlocked(sx, y) then T.addSleepDino(key, sx, y) end
         return
     end
     -- 道具果实：单个出现、周围障碍偏多（1.2.4 (2)(3)）
     if U.chance(S.fruitChance) then
         local fruitKey = U.chance(.55) and "fruit_energy" or "fruit_life"
         local fx0 = cx + (math.random() * 2 - 1) * 3.5
-        addItem(fruitKey, fx0, y, "fruit")
+        if T.isBlocked(fx0, y) then return end
+        T.addFruit(fruitKey, fx0, y)
         for i = 1, 4 do
             local ang = (i / 4) * U.tau + math.random()
-            addObstacle(U.pick(Data.obstacleWeights),
-                fx0 + math.cos(ang) * 2.4, y + math.sin(ang) * 1.6)
+            local ox = fx0 + math.cos(ang) * 2.4
+            local oy = y + math.sin(ang) * 1.6
+            if not T.isBlocked(ox, oy) then
+                addObstacle(U.pick(Data.obstacleWeights), ox, oy)
+            end
         end
         return
     end
@@ -157,8 +231,9 @@ local function spawnObstacleRow(P, y)
         local kind = U.pick(Data.obstacleWeights)
         local spread = Data.obstacles[kind].class == "block" and 6.5 or 10
         local x = cx + (math.random() * 2 - 1) * spread
-        if not eggNear(x, y) then
-            addObstacle(kind, x, y + (i - 1) * .9)
+        local oy = y + (i - 1) * .9
+        if not T.isBlocked(x, oy) and not eggNear(x, y) then
+            addObstacle(kind, x, oy)
         end
     end
 end
@@ -171,6 +246,7 @@ function T.clear()
         if it.ring and Host.entity.exists(it.ring) then Host.entity.kill(it.ring) end
     end
     T.items = {}
+    T.fields = {}
 end
 
 function T.reset(P)
@@ -178,6 +254,7 @@ function T.reset(P)
     T.nextObstacle = P.y + S.safeStart
     T.nextEgg = P.y + 4.5
     T.nextEnemy = P.y + S.safeStart + 14
+    T.nextGrove = P.y + GF.firstAt
     T.brakeT = S.brakeEventGap[1]
     for i = 1, 3 do T.addEgg(P.x - 1.2 + (i - 1) * 1.2, P.y + 5.5) end
     -- 开局默认骑乘似鸟龙在 UI 上说明；路上先给一只睡觉的三角龙当教学换乘点
@@ -232,6 +309,13 @@ end
 -- ------------------------------------------------------------------ update
 function T.update(dt, P)
     local ahead = P.y + S.ahead
+    while T.nextGrove < ahead do
+        local cx = P:futureX(T.nextGrove)
+            + (math.random() * 2 - 1) * GF.offset
+        T.spawnGroveField(cx, T.nextGrove)
+        T.nextGrove = T.nextGrove + GF.gapMin
+            + math.random() * (GF.gapMax - GF.gapMin)
+    end
     while T.nextObstacle < ahead do
         spawnObstacleRow(P, T.nextObstacle)
         T.nextObstacle = T.nextObstacle + S.obstacleGapMin
@@ -243,7 +327,8 @@ function T.update(dt, P)
     end
     -- 干扰恐龙事件（1.2.6）
     while T.nextEnemy < ahead do
-        if U.chance(S.enemyChance) then
+        local ex = P:futureX(T.nextEnemy)
+        if U.chance(S.enemyChance) and not T.isBlocked(ex, T.nextEnemy) then
             Dino.spawnEvent(U.pick(Data.enemyWeights), P, T.nextEnemy)
         end
         T.nextEnemy = T.nextEnemy + 11 + math.random() * 9
@@ -255,7 +340,10 @@ function T.update(dt, P)
         T.brakeT = T.brakeT - dt
         if T.brakeT <= 0 then
             T.brakeT = g[1] + math.random() * (g[2] - g[1])
-            Dino.spawnEvent(U.pick(Data.enemyWeights), P, P.y + 5 + math.random() * 7)
+            local by = P.y + 5 + math.random() * 7
+            if not T.isBlocked(P:futureX(by), by) then
+                Dino.spawnEvent(U.pick(Data.enemyWeights), P, by)
+            end
         end
     else
         T.brakeT = g[1] + math.random() * (g[2] - g[1])
@@ -263,6 +351,10 @@ function T.update(dt, P)
 
     local now = Host.time()
     local cull = P.y - Config.world.cullBack
+    for i = #T.fields, 1, -1 do
+        local f = T.fields[i]
+        if f.y + f.depth < cull then table.remove(T.fields, i) end
+    end
     local cullX = Config.world.cullX
     local i = 1
     local deepest, deepestOver, deepestIndex = nil, 0, nil

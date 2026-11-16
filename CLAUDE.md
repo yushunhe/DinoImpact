@@ -18,7 +18,7 @@ lua5.4 tools/luatest/dino_tests.lua      # 需 lua5.4，仓库根目录运行
 
 - `tools/luatest/mock_host.lua` 模拟 Host API；测试里可 `I.setOverride(keys)` 注入虚拟按键、`host._debug` 查实体/文本/点击按钮。
 - Lua 改动即时生效（StreamingAssets 直接加载），改完就跑测试。
-- 调试钩子（`dino_game.lua`）：`Game.debugClearTrack()`（拆掉生成器）、`Game.debugEnableSpawning("all"|"eggs"|"obstacles"|"enemies")`、`Game.debugSpawnObstacle(kind,x,y)`、`Game.debugSpawnMount(key,x,y)`。
+- 调试钩子（`dino_game.lua`）：`Game.debugClearTrack()`（拆掉生成器）、`Game.debugEnableSpawning("all"|"eggs"|"obstacles"|"enemies")`、`Game.debugSpawnObstacle(kind,x,y)`、`Game.debugSpawnMount(key,x,y)`、`Game.debugSpawnGroveField(x,y)`。
 
 ## C# 快速编译检查（不用开 Editor）
 
@@ -65,6 +65,7 @@ dotnet build Assembly-CSharp-Editor.csproj # 编辑器脚本（打包菜单）
 - 受击模型：停跑 + 无敌闪烁，任意 A/W/D 按键恢复并按下即转向（1.2.2）。测试里用 `resumeSteps` 模拟这个行为。障碍碰撞**每帧只结算重叠最深的一个**（`T.update` 里的 deepest 选择）——障碍判定圈放大后，逐条法线推出会互相抵消把玩家永久卡死，改这块别退回去。
 - Lua 坑：`function P.foo()` 点号定义却 `P:foo()` 冒号调用会把表自身传成第一个参数；`U.rad` 是常量不是函数。
 - Canvas API（C#）：`Rect` 要 int、`Ellipse/Triangle` 要 float——CS1503 常见来源。
+- 小树林大区域（`C.groveField`）：跑道上每 150~260 单位生成一片 3×2 的 `grove`，每棵都是阻拦障碍且碰撞圈互相重叠，整片不可通行；普通生成器用 `T.isBlocked()` 跳过区域内，避免蛋/果实被埋进树林。撞边同阻拦障碍（扣 1 心 + 推出）。调试：`Game.debugSpawnGroveField(x,y)`。
 
 ## Git 约定
 

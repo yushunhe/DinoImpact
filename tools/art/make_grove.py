@@ -33,6 +33,7 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "Assets" / "Resources" / "Dino"
 PREVIEW = ROOT / "tools" / "art" / "preview" / "grove_preview.png"
+FIELD_PREVIEW = ROOT / "tools" / "art" / "preview" / "grove_field_preview.png"
 
 W, H = 154, 158
 GROUND = 149
@@ -199,6 +200,30 @@ def contact_sheet(images: list[Image.Image], names: list[str],
     return sheet
 
 
+def field_preview(seed: int = 7, scale: int = 2) -> Image.Image:
+    """Representative 3x2 landmark like Config.groveField in dino_config.lua."""
+    rng = random.Random(seed)
+    spacing_x, spacing_y = 4.6 * 22, 4.5 * 22
+    base_w, base_h = round(154 * 1.2), round(158 * 1.2)
+    w = round(2 * spacing_x + base_w + 16)
+    h = round(spacing_y + base_h + 16)
+    canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+
+    # Back row first, front row last, matching dino_track.spawnGroveField().
+    for row in range(1, -1, -1):
+        for col in range(3):
+            sc = rng.uniform(1.0, 1.2)
+            sprite = load(rng.choice(NAMES), sc, rng.random() < .5)
+            x = w / 2 + (col - 1) * spacing_x + rng.uniform(-1, 1) * 0.6 * 22
+            base_y = h - 8 - row * spacing_y + rng.uniform(-.5, .5) * 0.6 * 22
+            put(canvas, sprite, x, base_y)
+
+    big = canvas.resize((w * scale, h * scale), Image.NEAREST)
+    board = checkerboard(big.width, big.height).convert("RGBA")
+    board.alpha_composite(big)
+    return board
+
+
 def main() -> None:
     images = []
     for i, name in enumerate(NAMES):
@@ -213,6 +238,10 @@ def main() -> None:
     PREVIEW.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(PREVIEW)
     print(f"wrote {PREVIEW.relative_to(ROOT)}")
+
+    FIELD_PREVIEW.parent.mkdir(parents=True, exist_ok=True)
+    field_preview().save(FIELD_PREVIEW)
+    print(f"wrote {FIELD_PREVIEW.relative_to(ROOT)}")
 
 
 if __name__ == "__main__":
