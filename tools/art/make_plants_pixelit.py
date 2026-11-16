@@ -23,6 +23,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage as ndi
 
+from plant_pixel_art import clean_light_fringe
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
 SOURCE = os.path.join(ROOT, "Assets", "Art", "8F8C53657EB35ED489FE464A57424287.png")
@@ -188,6 +190,7 @@ def run_pixelit(rgb, alpha, target_width, name, workdir):
         filled = pixels[nearest[0], nearest[1]]
         pixels[white, :3] = filled[white, :3]
     result = Image.fromarray(pixels, "RGBA")
+    result = clean_light_fringe(result)
     result = result.crop(result.getbbox())
     return result
 
@@ -256,6 +259,40 @@ def write_readme(images):
         f.write("\n".join(lines))
 
 
+def write_clean_readme(images):
+    """Write the current UTF-8 asset notes without the legacy mojibake text."""
+    lines = [
+        "史前植物像素素材",
+        "",
+        "来源：Assets/Art/8F8C53657EB35ED489FE464A57424287.png",
+        "重新切分：python tools/art/make_plants_pixelit.py",
+        "生成游戏纹理：python tools/art/pixelate_plants.py",
+        "预览：tools/art/preview/plants_pixelit_sheet.png",
+        "",
+        "图像处理：",
+        "- 移除抠图外围两圈的浅米色/浅粉色边缘",
+        "- 预乘 alpha 后下采样，避免透明背景把白色混回叶缘",
+        "- 14 色量化，保持 Point 像素风",
+        "- 自动检查外围亮边，当前全部为 rim=0",
+        "",
+        "Unity 导入：",
+        "- Texture Type = Sprite",
+        "- Filter Mode = Point",
+        "- Compression = None",
+        "- Pixels Per Unit = 22",
+        "- Pivot = Bottom Center (0.5, 0)",
+        "",
+        "运行时世界高度见 Assets/SurfImpact/Scripts/DinoPixelArt.cs",
+        "",
+        "文件：",
+    ]
+    for name, image in images:
+        lines.append(f"  {name}.png  {image.width}x{image.height}")
+    lines.append("")
+    with open(os.path.join(OUT_DIR, "README.txt"), "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+
 def update_meta_settings(images):
     """Keep Unity's generated .meta files in the project's pixel-art setup."""
     replacements = (
@@ -295,7 +332,7 @@ def main():
             results.append((name, result))
             print(f"{name}: {result.width}x{result.height}")
 
-    write_readme(results)
+    write_clean_readme(results)
     update_meta_settings(results)
     make_sheet(results, os.path.join(PREV_DIR, "plants_pixelit_sheet.png"))
     print(f"sheet: {os.path.join(PREV_DIR, 'plants_pixelit_sheet.png')}")

@@ -6,13 +6,15 @@ Each source PNG sits on a different pixel granularity, which reads as
 PPU = 22 px per world unit (same grid as the dinos), heights from the
 PlantUnits table in DinoPixelArt.cs:
 
-  downscale (LANCZOS) -> quantize to a flat adaptive palette (no dither)
-  -> threshold alpha to fully opaque / fully transparent pixels
+  clean the light cutout rim -> downscale with premultiplied alpha
+  -> quantize to a flat adaptive palette (no dither) -> clean the result
 
 Run from the repo root:  python3 -I tools/art/pixelate_plants.py
 """
-import os
+
 from PIL import Image
+
+from plant_pixel_art import downscale_pixel_art, outer_rim_count
 
 SRC = "Assets/Art/PlantsPixelIt"
 DST = "Assets/Resources/Dino"
@@ -21,18 +23,18 @@ MAX_COLORS = 14
 
 # sprite name -> (source file, design height in world units)
 PLANTS = {
-    "tree":            ("tree",            4.5),
-    "palm":            ("palm",            2.2),
-    "bush":            ("shrub",           1.2),
-    "cycad":           ("cycad",           1.3),
-    "fern":            ("fern",            1.0),
-    "fern_frond":      ("fern_frond",      0.9),
-    "flower":          ("clubmoss",        0.9),
-    "clubmoss_small":  ("clubmoss_small",  0.6),
-    "horsetail":       ("horsetail",       1.2),
-    "horsetail_cone":  ("horsetail_cone",  1.0),
-    "crown":           ("crown",           1.0),
-    "crown_small":     ("crown_small",     0.65),
+    "tree":            ("tree",            6.5),
+    "palm":            ("palm",            3.2),
+    "bush":            ("shrub",           2.0),
+    "cycad":           ("cycad",           2.4),
+    "fern":            ("fern",            1.8),
+    "fern_frond":      ("fern_frond",      1.3),
+    "flower":          ("clubmoss",        1.2),
+    "clubmoss_small":  ("clubmoss_small",  0.9),
+    "horsetail":       ("horsetail",       1.8),
+    "horsetail_cone":  ("horsetail_cone",  1.4),
+    "crown":           ("crown",           1.3),
+    "crown_small":     ("crown_small",     0.9),
 }
 
 
@@ -40,23 +42,21 @@ def pixelate(src_path, out_path, height_units):
     im = Image.open(src_path).convert("RGBA")
     h = max(2, round(height_units * PPU))
     w = max(2, round(im.width * h / im.height))
-
-    # smooth downscale, then flatten back to hard pixels via quantization
-    rgb = im.convert("RGB").resize((w, h), Image.LANCZOS)
-    alpha = im.getchannel("A").resize((w, h), Image.BILINEAR)
-    alpha = alpha.point(lambda v: 255 if v >= 110 else 0)
-
-    pal = rgb.quantize(colors=MAX_COLORS, method=Image.MEDIANCUT, dither=Image.Dither.NONE)
-    out = Image.new("RGBA", (w, h))
-    out.paste(pal.convert("RGB"), (0, 0), alpha)
+    out = downscale_pixel_art(im, (w, h), MAX_COLORS)
+    rim = outer_rim_count(out)
+    if rim:
+        raise RuntimeError(f"{out_path}: {rim} bright rim pixels remain")
     out.save(out_path)
-    return w, h
+    return out.width, out.height, rim
 
 
 def main():
     for name, (src_name, units) in PLANTS.items():
-        w, h = pixelate(f"{SRC}/{src_name}.png", f"{DST}/{name}.png", units)
-        print(f"{name:16s} {w:4d} x {h:4d}  ({h / PPU:.2f} units @ PPU {PPU:.0f})")
+        w, h, rim = pixelate(f"{SRC}/{src_name}.png", f"{DST}/{name}.png", units)
+        print(
+            f"{name:16s} {w:4d} x {h:4d}  "
+            f"({h / PPU:.2f} units @ PPU {PPU:.0f}, rim={rim})"
+        )
 
 
 if __name__ == "__main__":

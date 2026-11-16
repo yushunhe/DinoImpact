@@ -20,8 +20,26 @@ placeholder.
   fern.png           fern decoration
   flower.png         small flower decoration
   pebble.png         small ground detail
-  ground_grass.png   tiling grass texture
+  ground_grass.png   tiling grass texture (base ground everywhere)
+  ground_fern.png    tiling fern-ground texture (terrain patches)
+  ground_swamp.png   tiling swamp texture (terrain patches)
   ground_path.png    tiling dirt-path texture
+
+Current vegetation set
+----------------------
+The 12 plant sprites (tree, palm, bush, cycad, fern, fern_frond, flower,
+clubmoss_small, horsetail, horsetail_cone, crown, crown_small) are generated
+from Assets/Art/gemini/*.jpg by (white points are recoloured and over-bright
+green foliage is capped so it does not read as white dots in game):
+
+  python tools/art/pixelate_gemini_plants.py
+
+Preview: tools/art/preview/gemini_plants_sheet.png
+
+Check or repair white points without rebuilding every sprite:
+
+  python tools/art/pixelate_gemini_plants.py --check
+  python tools/art/pixelate_gemini_plants.py --fix
 
 The dino_* files in this folder are generated white-feathered Ornithomimus
 frames with a hide-clad rider and quiver (46x56, Pixels Per Unit 22, pivot at

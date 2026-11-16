@@ -1,27 +1,33 @@
-史前植物参考图切分像素素材
+史前植物像素素材（上一版；当前游戏植被由 Assets/Art/gemini 生成）
 
 来源：Assets/Art/8F8C53657EB35ED489FE464A57424287.png
-生成：python3 tools/art/make_plants_pixelit.py
-像素化：tools/pixelit/convert.mjs（Pixel It，scale 50 + 植物调色板）
-处理：逐株切分、清除白底与参考图水印、最近色量化、透明背景。
-
-Unity 导入：Texture Type = Sprite，Filter Mode = Point，Compression = None，
-Pixels Per Unit = 22，Pivot = Bottom Center (0.5, 0)。
-底部为地面接触边；大平原上建议只作装饰，不要给树和灌木加伤害判定。
-
-文件：
-  tree.png  156x231
-  shrub.png  116x134
-  fern.png  82x88
-  cycad.png  90x123
-  palm.png  46x98
-  fern_frond.png  54x69
-  horsetail.png  22x76
-  horsetail_cone.png  24x124
-  crown.png  34x76
-  crown_small.png  22x41
-  clubmoss.png  23x90
-  clubmoss_small.png  24x105
-
+重新切分：python tools/art/make_plants_pixelit.py
+生成游戏纹理：python tools/art/pixelate_plants.py
 预览：tools/art/preview/plants_pixelit_sheet.png
-调色板：tools/pixelit/palettes/plants.json
+
+图像处理：
+- 移除抠图外围两圈的浅米色/浅粉色边缘
+- 预乘 alpha 后下采样，避免透明背景把白色混回叶缘
+- 14 色量化，保持 Point 像素风
+- 自动检查外围亮边，当前全部为 rim=0
+
+Unity 导入：
+- Texture Type = Sprite
+- Filter Mode = Point
+- Compression = None
+- Pixels Per Unit = 22
+- Pivot = Bottom Center (0.5, 0)
+
+运行时世界高度（DinoPixelArt.PlantUnits）：
+  tree            6.5
+  palm            3.2
+  shrub / bush    2.0
+  cycad           2.4
+  fern            1.8
+  fern_frond      1.3
+  horsetail       1.8
+  horsetail_cone  1.4
+  crown           1.3
+  crown_small     0.9
+  clubmoss/flower 1.2
+  clubmoss_small  0.9
