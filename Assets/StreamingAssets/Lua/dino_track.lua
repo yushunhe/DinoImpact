@@ -105,11 +105,16 @@ end
 
 function T.spawnGroveField(cx, y)
     local c = GF
+    local rows = #c.rowCounts
+    local maxCols = 0
+    for r = 1, rows do
+        if c.rowCounts[r] > maxCols then maxCols = c.rowCounts[r] end
+    end
     -- 横向范围要盖住最外侧 grove 的碰撞圈（中心偏移 + jitter + 半径），
     -- 纵向范围要盖住整片树冠，避免蛋/果实生成在树冠里。
-    local halfW = (c.cols - 1) * c.spacingX * .5 + c.jitter
-        + 3.5 * c.scaleMax + .5
-    local depth = (c.rows - 1) * c.spacingY + 7.2 * c.scaleMax
+    local halfW = (maxCols - 1) * c.spacingX * .5 + c.jitter
+        + c.radius * c.scaleMax + .5
+    local depth = (rows - 1) * c.spacingY + 7.2 * c.scaleMax
         + c.columnStagger + c.jitter * .5
 
     -- 清掉已经生成在区域里的可拾取物和普通障碍，避免蛋/换乘点被埋进
@@ -125,11 +130,12 @@ function T.spawnGroveField(cx, y)
 
     T.fields[#T.fields + 1] = { x = cx, y = y, hw = halfW, depth = depth }
 
-    -- 后排先画、前排压在上面；所有碰撞圈互相重叠，保证没有缝。
-    for row = c.rows, 1, -1 do
-        for col = 1, c.cols do
+    -- 后排先画、前排压在上面；每排 1/2/3 棵，整体是尖朝玩家的倒三角。
+    for row = rows, 1, -1 do
+        local count = c.rowCounts[row]
+        for col = 1, count do
             local sc = c.scaleMin + math.random() * (c.scaleMax - c.scaleMin)
-            local x = cx + (col - (c.cols + 1) * .5) * c.spacingX
+            local x = cx + (col - (count + 1) * .5) * c.spacingX
                 + (math.random() * 2 - 1) * c.jitter
             -- 每棵独立上下错开，前排不再是一条直线
             local stagger = (math.random() * 2 - 1) * c.columnStagger

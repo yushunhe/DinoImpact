@@ -143,10 +143,10 @@ C.juice = {
 -- 密度全面上调约 1~2 倍（行距缩短 + 每行数量/概率提高）
 C.spawn = {
     safeStart = 16,
-    obstacleGapMin = 6,
-    obstacleGapMax = 10,
-    eggGapMin = 4,
-    eggGapMax = 8,
+    obstacleGapMin = 12,   -- 除小树林外所有生成频率减半
+    obstacleGapMax = 20,
+    eggGapMin = 8,
+    eggGapMax = 16,
     ahead = 30,            -- how far ahead rows are placed (~5 s of travel)
     anchorLimit = 36,      -- a row's anchor never sits further than this from
                            -- the player sideways (>= tan 48deg * ahead, so the
@@ -154,28 +154,28 @@ C.spawn = {
     eggValue = 25,
     killValue = 60,
     mountValue = 120,
-    fruitChance = .20,     -- an egg row becomes a guarded fruit instead
-    sleepChance = .34,     -- 换乘点：随行密度同步上调
-    enemyChance = .45,     -- per obstacle row, chance of also spawning an enemy event
-    brakeEventGap = { 3.5, 6 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
+    fruitChance = .10,     -- an egg row becomes a guarded fruit instead
+    sleepChance = .17,     -- 换乘点：概率减半
+    enemyChance = .225,    -- per obstacle row, chance of also spawning an enemy event
+    brakeEventGap = { 7, 12 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
 
 -- 小树林大区域：跑道中的不可通行地标（参考 edgesurf 的礁石群）。
 -- 由若干 grove sprite 拼成，每棵 grove 都是阻拦障碍；碰撞圈互相重叠，
 -- 整片区域没有可钻的缝，玩家只能从左边或右边绕过去。
+-- 形状：从前往后每排 1 / 2 / 3 棵，倒三角（尖头朝向玩家）。
 C.groveField = {
     firstAt = 60,          -- 第一个区域离起点的距离（世界单位）
     gapMin = 90,           -- 两个区域之间的最小距离
     gapMax = 150,
-    cols = 3,
-    rows = 2,
+    rowCounts = { 1, 2, 3 },
     spacingX = 4.6,        -- 相邻 grove 中心间距（碰撞圈必须重叠）
     spacingY = 4.5,
     jitter = 1.2,          -- 横向随机抖动，打破整齐的列
     columnStagger = .7,    -- 每棵上下随机错开，弱化整齐的排
     scaleMin = .95,
     scaleMax = 1.25,
-    radius = 3.9,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
+    radius = 4.0,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
     offset = 5,            -- 区域中心相对预测路线的横向偏移
     sprites = { "grove", "grove_2", "grove_3", "grove_4" },
 }
