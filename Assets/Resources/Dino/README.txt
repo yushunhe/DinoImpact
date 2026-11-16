@@ -18,6 +18,7 @@ placeholder.
   bush.png           bush obstacle
   tree.png           large tree decoration
   grove.png          小树林: a dense grove composed from the plant sprites
+                     (grove_2.png ~ grove_4.png are further variants)
   fern.png           fern decoration
   flower.png         small flower decoration
   pebble.png         small ground detail
@@ -42,9 +43,11 @@ Check or repair white points without rebuilding every sprite:
   python tools/art/pixelate_gemini_plants.py --check
   python tools/art/pixelate_gemini_plants.py --fix
 
-The 小树林 grove sprite (grove.png) is composed from those 12 sprites in the
-reference layout: a tall central tree, a second smaller tree, the yellow palm,
-cycad rosettes and low ground plants, over a pixel rock bed.
+The 小树林 grove sprites (grove.png plus grove_2.png ~ grove_4.png) are
+composed from those 12 sprites in the reference layout: a tall central tree, a
+second smaller tree, the yellow palm, cycad rosettes and low ground plants,
+with pixel grass clumps along the bottom. The variants are deterministic, so
+world placement can pick one at random for variety.
 
   python tools/art/make_grove.py
 
