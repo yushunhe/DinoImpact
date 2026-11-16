@@ -160,9 +160,9 @@ C.spawn = {
 -- 由若干 grove sprite 拼成，每棵 grove 都是阻拦障碍；碰撞圈互相重叠，
 -- 整片区域没有可钻的缝，玩家只能从左边或右边绕过去。
 C.groveField = {
-    firstAt = 90,          -- 第一个区域离起点的距离（世界单位）
-    gapMin = 150,          -- 两个区域之间的最小距离
-    gapMax = 260,
+    firstAt = 60,          -- 第一个区域离起点的距离（世界单位）
+    gapMin = 90,           -- 两个区域之间的最小距离
+    gapMax = 150,
     cols = 3,
     rows = 2,
     spacingX = 4.6,        -- 相邻 grove 中心间距（碰撞圈必须重叠）
