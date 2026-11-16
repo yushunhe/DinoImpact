@@ -231,8 +231,12 @@ io.write("grove field landmark\n")
 startFresh()
 local field = T.spawnGroveField(P.x, P.y + 8)
 local blockers = 0
+local fieldItem
 for i = 1, #T.items do
-    if T.items[i].field then blockers = blockers + 1 end
+    if T.items[i].field then
+        blockers = blockers + 1
+        fieldItem = T.items[i]
+    end
 end
 local wantGrove = 0
 for i = 1, #Config.groveField.rowCounts do
@@ -240,6 +244,8 @@ for i = 1, #Config.groveField.rowCounts do
 end
 check(blockers == wantGrove,
     "grove field spawns a full triangular grid of blocking groves")
+check(fieldItem and fieldItem.hitY and fieldItem.hitY > fieldItem.y + 2,
+    "field collision is centred on the canopy, not the empty ground below")
 check(T.isBlocked(P.x, P.y + 9), "grove field footprint is marked impassable")
 check(not T.isBlocked(P.x + 40, P.y + 9), "outside the grove field stays open")
 check(T.addEgg(P.x, P.y + 9) == nil, "eggs are not placed inside the grove field")

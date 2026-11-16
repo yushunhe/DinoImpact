@@ -176,7 +176,8 @@ C.groveField = {
     columnStagger = .7,    -- 每棵上下随机错开，弱化整齐的排
     scaleMin = .95,
     scaleMax = 1.25,
-    radius = 4.0,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
+    radius = 3.9,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
+    hitOffsetY = 3.5,      -- 碰撞圈圆心上移，对齐树冠而不是树根/空地
     offset = 5,            -- 区域中心相对预测路线的横向偏移
     sprites = { "grove", "grove_2", "grove_3", "grove_4" },
 }

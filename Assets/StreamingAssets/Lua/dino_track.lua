@@ -146,7 +146,8 @@ function T.spawnGroveField(cx, y)
             Host.entity.setScale(id, sc, sc, 1)
             T.items[#T.items + 1] = {
                 type = "obstacle", kind = sprite, class = "block", low = false,
-                x = x, y = yy, radius = c.radius * sc, id = id, dead = false,
+                x = x, y = yy, hitY = yy + c.hitOffsetY,
+                radius = c.radius * sc, id = id, dead = false,
                 field = true,
             }
         end
@@ -306,12 +307,13 @@ local function hitObstacle(it, P)
             return
         end
         -- 其他阻拦型障碍不消失，但把玩家沿法线推出，避免卡在碰撞体里
-        local d = U.dist(P.x, P.y, it.x, it.y)
+        local iy = it.hitY or it.y
+        local d = U.dist(P.x, P.y, it.x, iy)
         local rr = it.radius + P.radius
         if d < rr then
             local k = (rr - d) / math.max(d, .001)
             P.x = P.x + (P.x - it.x) * k
-            P.y = P.y + (P.y - it.y) * k
+            P.y = P.y + (P.y - iy) * k
             P:extendInvuln(Config.run.postHit)
         end
     elseif it.class == "turn" then
@@ -392,7 +394,8 @@ function T.update(dt, P)
             or not Host.entity.exists(it.id)
 
         if not remove then
-            local overlap = U.dist2(P.x, P.y, it.x, it.y)
+            local iy = it.hitY or it.y
+            local overlap = U.dist2(P.x, P.y, it.x, iy)
                 < (P.radius + it.radius) ^ 2
             if overlap and isTreeBlock(it) then treeOverlap = true end
             if it.type == "mount" and it.zzz and Host.entity.exists(it.zzz) then
@@ -431,7 +434,7 @@ function T.update(dt, P)
                     -- 只结算重叠最深的一个障碍；命中后立即移除，避免卡死
                     local rr = P.radius + it.radius
                     local over = rr * rr
-                        - U.dist2(P.x, P.y, it.x, it.y)
+                        - U.dist2(P.x, P.y, it.x, iy)
                     if over > deepestOver then
                         deepest, deepestOver = it, over
                     end
