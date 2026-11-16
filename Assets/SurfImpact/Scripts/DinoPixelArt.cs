@@ -61,6 +61,7 @@ namespace DinoImpact
             switch (name)
             {
                 case "tree":            units = 6.5f; return true;   // tree
+                case "grove":           units = 7.18f; return true;  // 小树林 composition
                 case "palm":            units = 3.2f; return true;
                 case "bush":            units = 2.0f; return true;   // shrub
                 case "cycad":           units = 2.4f; return true;

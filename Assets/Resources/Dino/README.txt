@@ -17,6 +17,7 @@ placeholder.
   log.png            fallen log obstacle
   bush.png           bush obstacle
   tree.png           large tree decoration
+  grove.png          小树林: a dense grove composed from the plant sprites
   fern.png           fern decoration
   flower.png         small flower decoration
   pebble.png         small ground detail
@@ -40,6 +41,14 @@ Check or repair white points without rebuilding every sprite:
 
   python tools/art/pixelate_gemini_plants.py --check
   python tools/art/pixelate_gemini_plants.py --fix
+
+The 小树林 grove sprite (grove.png) is composed from those 12 sprites in the
+reference layout: a tall central tree, a second smaller tree, the yellow palm,
+cycad rosettes and low ground plants, over a pixel rock bed.
+
+  python tools/art/make_grove.py
+
+Preview: tools/art/preview/grove_preview.png
 
 The dino_* files in this folder are generated white-feathered Ornithomimus
 frames with a hide-clad rider and quiver (46x56, Pixels Per Unit 22, pivot at

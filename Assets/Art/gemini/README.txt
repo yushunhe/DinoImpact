@@ -26,3 +26,4 @@ GEMINI 植被素材
   clubmoss.jpg  -> flower / clubmoss_small
   horsetail.jpg -> horsetail / horsetail_cone
   crown.jpg     -> crown / crown_small
+  排列组合      -> grove（小树林，python tools/art/make_grove.py）
