@@ -37,7 +37,7 @@ dotnet build Assembly-CSharp-Editor.csproj # 编辑器脚本（打包菜单）
   先删 `Builds/Win64` 再打，产物核对 `DinoImpact_Data/StreamingAssets/Lua/`（应有 21 个 .lua）。
 - Windows 目标需要编辑器装 **Windows Build Support (Mono)** 模块（Windows 电脑 Hub 直接勾；国服 Hub 在 Linux 上给的链接是 Mac .pkg，坏链——绕过办法见下）：下载 .pkg 后 `bsdtar -xf` 解 xar，再 `bsdtar -xpf TargetSupport.pkg.tmp/Payload`，把结果拷进 `<编辑器>/Data/PlaybackEngines/WindowsStandaloneSupport/`。
 - 分发 exe：把 `DinoImpact.exe + DinoImpact_Data/`（可再含 MonoBleedingEdge/UnityPlayer.dll）**整个文件夹**压 zip，只发 exe 跑不了。未签名，对方首次运行会遇 SmartScreen 提示。压 zip 时顶层目录起个像样的名字（如 `DinoImpact_Win64/`），并剔除 `Dino_BurstDebugInformation_DoNotShip/`。
-- **绿屏只发生在 Linux 原生 build**；上面这条 Windows 管线在 Windows 上运行正常，gamejam 分发一律用它。
+- **绿屏不要只怪 Linux**：Linux 原生 build 会绿屏；Windows player 也曾因 `Shader.Find("Unlit/Texture")` 在包里被剥离而绿屏——回退到 `Sprites/Default` 后既不认 `_MainTex_ST`（草地放大成单色块），又在透明队列里排序 0 盖住所有精灵。地面必须用 Always Included 的 `Surf/Unlit` 并设 `sortingOrder=-30000`（见 `DinoHost.MakeGroundMaterial`）。gamejam 分发仍用 Windows 包。完整排查记录见 `docs/green-screen-fix.md`。
 
 ## Game Jam / itch.io 上传决策（2026-11-13 定）
 
@@ -70,3 +70,4 @@ dotnet build Assembly-CSharp-Editor.csproj # 编辑器脚本（打包菜单）
 
 - 提交信息**不要**带 Claude 署名/Co-Authored-By 行。
 - 默认只做本地 commit，`git push` 由用户本人跑（除非点名让推）。
+- **入库范围**：只提交源码 + 当前版本素材（`Assets/Art/gemini/` 源图、`Assets/Resources/Dino/` 生成物、`tools/art/` 脚本）以及成对的 `.meta`。构建产物、`Assets/Resources/DinoLua/`（构建前自动生成）、`Assets/Art/PlantsCutout/`、`Library_old/`、多版本素材 zip 一律不入库。完整规则与三平台打包流程见 `docs/assets-and-packaging.md`。

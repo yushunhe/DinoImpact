@@ -34,3 +34,28 @@ sysinfo.txt
 *.aab
 *.unitypackage
 *.app
+
+# ===== 入库范围规则（详见 docs/assets-and-packaging.md）=====
+# 只提交源码 + 当前版本素材 + 生成脚本；构建产物、中间图、多版本归档一律不入库。
+
+# 旧 Unity 工程备份（当前 Library_old/ 约 2.7 GB）
+/Library_old/
+/[Ll]ibrary_old*/
+
+# WebGL / Android 构建前由 DinoLuaResources.Sync() 自动生成的 Lua 镜像
+/Assets/Resources/DinoLua/
+/Assets/Resources/DinoLua.meta
+
+# 素材中间产物（可由 tools/art 下的脚本重新生成）
+/Assets/Art/PlantsCutout/
+/Assets/Art/PlantsCutout.meta
+
+# 参考图 / 未处理原图（不参与构建）
+/Assets/Art/Reference/
+
+# 多版本素材归档（zip 放这里，格式见文档第 2 节）
+/ArtArchive/
+
+# Python 缓存
+__pycache__/
+*.pyc
