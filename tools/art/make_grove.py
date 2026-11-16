@@ -204,18 +204,22 @@ def field_preview(seed: int = 7, scale: int = 2) -> Image.Image:
     """Representative 3x2 landmark like Config.groveField in dino_config.lua."""
     rng = random.Random(seed)
     spacing_x, spacing_y = 4.6 * 22, 4.5 * 22
-    base_w, base_h = round(154 * 1.2), round(158 * 1.2)
-    w = round(2 * spacing_x + base_w + 16)
-    h = round(spacing_y + base_h + 16)
+    base_w, base_h = round(154 * 1.25), round(158 * 1.25)
+    w = round(2 * spacing_x + base_w + 64)
+    h = round(spacing_y + base_h + 96)
     canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
 
     # Back row first, front row last, matching dino_track.spawnGroveField().
     for row in range(1, -1, -1):
         for col in range(3):
-            sc = rng.uniform(1.0, 1.2)
+            sc = rng.uniform(.95, 1.25)
             sprite = load(rng.choice(NAMES), sc, rng.random() < .5)
-            x = w / 2 + (col - 1) * spacing_x + rng.uniform(-1, 1) * 0.6 * 22
-            base_y = h - 8 - row * spacing_y + rng.uniform(-.5, .5) * 0.6 * 22
+            x = (w / 2 + (col - 1) * spacing_x
+                 + rng.uniform(-1, 1) * 1.2 * 22)
+            # Each grove gets its own vertical offset so the front edge is jagged.
+            stagger = rng.uniform(-0.7, 0.7) * 22
+            base_y = (h - 8 - row * spacing_y + stagger
+                      + rng.uniform(-.5, .5) * .6 * 22)
             put(canvas, sprite, x, base_y)
 
     big = canvas.resize((w * scale, h * scale), Image.NEAREST)

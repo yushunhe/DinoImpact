@@ -110,6 +110,7 @@ function T.spawnGroveField(cx, y)
     local halfW = (c.cols - 1) * c.spacingX * .5 + c.jitter
         + 3.5 * c.scaleMax + .5
     local depth = (c.rows - 1) * c.spacingY + 7.2 * c.scaleMax
+        + c.columnStagger + c.jitter * .5
 
     -- 清掉已经生成在区域里的可拾取物和普通障碍，避免蛋/换乘点被埋进
     -- 不可达的树林；睡觉恐龙（换乘点）保留，它本身无害。
@@ -130,7 +131,9 @@ function T.spawnGroveField(cx, y)
             local sc = c.scaleMin + math.random() * (c.scaleMax - c.scaleMin)
             local x = cx + (col - (c.cols + 1) * .5) * c.spacingX
                 + (math.random() * 2 - 1) * c.jitter
-            local yy = y + (row - 1) * c.spacingY
+            -- 每棵独立上下错开，前排不再是一条直线
+            local stagger = (math.random() * 2 - 1) * c.columnStagger
+            local yy = y + (row - 1) * c.spacingY + stagger
                 + (math.random() * 2 - 1) * c.jitter * .5
             local sprite = U.choice(c.sprites)
             local id = Host.entity.new(sprite, x, yy, 0)
