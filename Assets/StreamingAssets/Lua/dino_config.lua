@@ -154,8 +154,9 @@ C.spawn = {
     eggValue = 25,
     killValue = 60,
     mountValue = 120,
-    fruitChance = .10,     -- an egg row becomes a guarded fruit instead
-    sleepChance = .17,     -- 换乘点：概率减半
+    fruitChance = .20,     -- an egg row becomes a guarded fruit instead
+                           -- （障碍行本身已减半，这里保持原值=总体减半）
+    sleepChance = .34,     -- 换乘点（同上：随障碍行减半）
     enemyChance = .225,    -- per obstacle row, chance of also spawning an enemy event
     brakeEventGap = { 7, 12 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
