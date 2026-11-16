@@ -20,12 +20,21 @@ namespace DinoImpact
             public SpriteRenderer sprite;
         }
 
+        class TerrainData
+        {
+            public int id;
+            public string kind;
+            public GameObject go;
+        }
+
         readonly DinoBootstrap _bootstrap;
         readonly Dictionary<int, EntityData> _entities = new Dictionary<int, EntityData>();
+        readonly Dictionary<int, TerrainData> _terrain = new Dictionary<int, TerrainData>();
         readonly SurfInput _input = new SurfInput();
 
         Script _script;
         int _nextId = 1;
+        int _nextTerrainId = 1;
         Camera _camera;
         SurfUI _ui;
         SurfAudio _audio;
@@ -78,7 +87,13 @@ namespace DinoImpact
             // so the ground is infinite in every direction (no path edges).
             Sprite grass = DinoPixelArt.Get("ground_grass");
             _groundMat = MakeGroundMaterial(grass, new Vector2(60f, 60f));
-            _ground = MakeQuad("Ground", 120f, _groundMat, 3f);
+            // Keep the ground behind every gameplay sprite. Sprites are spawned
+            // around z=0, so a ground plane at z=3 would depth-occlude them.
+            _ground = MakeQuad("Ground", 120f, _groundMat, 20f);
+            // The ground shader also supports tiling/offset (see
+            // MakeGroundMaterial); it is a transparent shader, so draw it before
+            // every sprite explicitly instead of relying on depth.
+            _ground.sortingOrder = -30000;
 
             _fx = SurfParticles.Build(_camera.transform);
             _audio = SurfAudio.Build();
@@ -89,7 +104,13 @@ namespace DinoImpact
 
         Material MakeGroundMaterial(Sprite sprite, Vector2 tiling)
         {
-            Shader shader = Shader.Find("Unlit/Texture");
+            // Player builds strip built-in shaders that no asset references, so
+            // Shader.Find("Unlit/Texture") can return null there (the old
+            // fallback ignored tiling and covered every sprite in the stale
+            // build). Surf/Unlit is in Always Included Shaders, honours
+            // _MainTex_ST, and is the safe first choice for the ground plane.
+            Shader shader = Shader.Find("Surf/Unlit");
+            if (shader == null) shader = Shader.Find("Unlit/Texture");
             if (shader == null) shader = Shader.Find("Sprites/Default");
             var mat = new Material(shader) { name = "DinoGround" };
             mat.mainTexture = sprite.texture;
@@ -183,6 +204,7 @@ namespace DinoImpact
             var save = new Table(_script);
             var input = new Table(_script);
             var fx = new Table(_script);
+            var terrain = new Table(_script);
 
             host.Set("version", DynValue.NewString("0.1"));
             host.Set("time", Fn((s, a) => DynValue.NewNumber(Time.time)));
@@ -275,6 +297,20 @@ namespace DinoImpact
             entity.Set("setLean", Fn((s, a) => DynValue.Nil));
             entity.Set("setAnim", Fn((s, a) => DynValue.Nil));
             entity.Set("setTrail", Fn((s, a) => DynValue.Nil));
+
+            // ------------------------------------------------------------- terrain
+            // Ground biome patches (fern / swamp) stamped on the endless grass
+            // plane. x,y are the patch centre; w,h its world size.
+            terrain.Set("add", Fn((s, a) =>
+            {
+                string kind = StrArg(a, 0, "fern");
+                return DynValue.NewNumber(AddTerrain(kind, FArg(a, 1), FArg(a, 2),
+                    FArg(a, 3, 6f), FArg(a, 4, 6f), IntArg(a, 5, 0)));
+            }));
+            terrain.Set("kill", Fn((s, a) => { KillTerrain(IntArg(a, 0)); return DynValue.Nil; }));
+            terrain.Set("clear", Fn((s, a) => { ClearTerrain(); return DynValue.Nil; }));
+            terrain.Set("count", Fn((s, a) => DynValue.NewNumber(_terrain.Count)));
+            terrain.Set("exists", Fn((s, a) => DynValue.NewBoolean(_terrain.ContainsKey(IntArg(a, 0)))));
 
             // ----------------------------------------------------------------- fx
             fx.Set("event", Fn((s, a) =>
@@ -446,6 +482,7 @@ namespace DinoImpact
             host.Set("save", DynValue.NewTable(save));
             host.Set("input", DynValue.NewTable(input));
             host.Set("fx", DynValue.NewTable(fx));
+            host.Set("terrain", DynValue.NewTable(terrain));
             _script.Globals.Set("Host", DynValue.NewTable(host));
         }
 
@@ -489,6 +526,49 @@ namespace DinoImpact
             foreach (var e in _entities.Values)
                 if (e.go != null) UnityEngine.Object.Destroy(e.go);
             _entities.Clear();
+        }
+
+        // -------------------------------------------------------------- terrain
+
+        int AddTerrain(string kind, float x, float y, float w, float h, int variant)
+        {
+            if (kind != "fern" && kind != "swamp") kind = "fern";
+            // Snap to whole 2-unit ground tiles so the patch pattern matches the
+            // base plane's texel grid.
+            int tx = Mathf.Clamp(Mathf.RoundToInt(w / 2f), 1, 12);
+            int ty = Mathf.Clamp(Mathf.RoundToInt(h / 2f), 1, 12);
+
+            int id = _nextTerrainId++;
+            Texture2D tex = DinoPixelArt.GroundPatch(kind, tx, ty, variant);
+
+            Shader shader = Shader.Find("Sprites/Default");
+            if (shader == null) shader = Shader.Find("Unlit/Transparent");
+            var mat = new Material(shader) { name = "Terrain_" + kind + "_" + id };
+            mat.mainTexture = tex;
+
+            // Between the scrolling base plane (z=20) and gameplay sprites (z=0).
+            // A tiny per-id offset keeps overlapping patch cores from z-fighting.
+            float z = 19f - (id % 512) * .0005f;
+            MeshRenderer r = MakeQuad("Terrain_" + kind + "_" + id, ty * 2f, mat, z, tx * 2f);
+            r.transform.position = new Vector3(x, y, z);
+            r.sortingOrder = -20000;   // under every sprite, over the base ground
+
+            _terrain[id] = new TerrainData { id = id, kind = kind, go = r.gameObject };
+            return id;
+        }
+
+        void KillTerrain(int id)
+        {
+            if (!_terrain.TryGetValue(id, out TerrainData d)) return;
+            if (d.go != null) UnityEngine.Object.Destroy(d.go);
+            _terrain.Remove(id);
+        }
+
+        void ClearTerrain()
+        {
+            foreach (var d in _terrain.Values)
+                if (d.go != null) UnityEngine.Object.Destroy(d.go);
+            _terrain.Clear();
         }
 
         // --------------------------------------------------------------- helpers
@@ -551,6 +631,7 @@ namespace DinoImpact
         public void Destroy()
         {
             ClearEntities();
+            ClearTerrain();
         }
     }
 }

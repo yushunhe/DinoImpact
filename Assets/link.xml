@@ -1,0 +1,7 @@
+<linker>
+  <!-- MoonSharp registers the Lua standard library (including require) in
+       managed code. WebGL/Android use IL2CPP, whose managed stripping can
+       remove those registrations; keeping the assembly intact makes the
+       interpreter behave the same as in the editor. -->
+  <assembly fullname="MoonSharp.Interpreter" preserve="all" />
+</linker>

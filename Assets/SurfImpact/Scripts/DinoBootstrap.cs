@@ -62,24 +62,78 @@ namespace DinoImpact
         {
             string dir = LuaDirectory;
             string main = Path.Combine(dir, "main.lua");
-            if (!File.Exists(main))
-                throw new FileNotFoundException("Lua entry point missing: " + main);
+            // Android ships StreamingAssets inside the APK (a jar: URL) and WebGL
+            // serves it over HTTP, so the normal file APIs cannot read it there.
+            // The build pipeline mirrors the same .lua files into
+            // Assets/Resources/DinoLua for those platforms.
+            bool packed = Application.platform == RuntimePlatform.Android ||
+                          Application.platform == RuntimePlatform.WebGLPlayer ||
+                          !File.Exists(main);
+            if (packed && Resources.Load<TextAsset>("DinoLua/main.lua") == null)
+                throw new FileNotFoundException("Lua entry point missing: " + main +
+                    " (Android/WebGL build needs the DinoLua resources mirror)");
 
             Script.DefaultOptions.DebugPrint = s => Debug.Log("[Lua] " + s);
-            var loader = new FileSystemScriptLoader
+            if (packed)
             {
-                ModulePaths = new[] { Path.Combine(dir, "?.lua"), Path.Combine(dir, "?", "init.lua") },
-            };
-            Script.DefaultOptions.ScriptLoader = loader;
+                Script.DefaultOptions.ScriptLoader = new DinoLuaResourcesLoader("DinoLua");
+            }
+            else
+            {
+                Script.DefaultOptions.ScriptLoader = new FileSystemScriptLoader
+                {
+                    ModulePaths = new[] { Path.Combine(dir, "?.lua"), Path.Combine(dir, "?", "init.lua") },
+                };
+            }
 
             _script = new Script(CoreModules.Preset_SoftSandbox | CoreModules.LoadMethods);
             _script.Options.DebugPrint = s => Debug.Log("[Lua] " + s);
 
+            InstallFallbackRequire();
             _host.AttachScript(_script);
-            _script.DoFile(main);
+            _script.DoFile(packed ? "main.lua" : main);
             CallLua("Game", "init");
             Ready = true;
-            Debug.Log("[Dino] Lua game loaded from " + dir);
+            Debug.Log("[Dino] Lua game loaded from " + (packed ? "Resources/DinoLua" : dir));
+        }
+
+        /// <summary>
+        /// IL2CPP builds (WebGL/Android) can strip MoonSharp's managed
+        /// registration of Lua's "require"; install an equivalent callback
+        /// that goes through the active script loader. No-op when MoonSharp
+        /// already provided require (editor/desktop Mono).
+        /// </summary>
+        void InstallFallbackRequire()
+        {
+            if (_script == null || _script.Globals.Get("require").Type == DataType.Function)
+                return;
+
+            var loaded = new Table(_script);
+            DynValue require = DynValue.NewCallback((ctx, args) =>
+            {
+                if (args.Count < 1 || args[0].Type != DataType.String)
+                    throw new ScriptRuntimeException("require: module name expected");
+
+                string name = args[0].String;
+                DynValue hit = loaded.Get(name);
+                if (hit.Type != DataType.Nil) return hit;
+
+                IScriptLoader loader = Script.DefaultOptions.ScriptLoader;
+                string file = loader.ResolveModuleName(name, _script.Globals);
+                if (string.IsNullOrEmpty(file)) file = name + ".lua";
+
+                string source = loader.LoadFile(file, _script.Globals) as string;
+                if (source == null)
+                    throw new ScriptRuntimeException("require: no source for module '" + name + "'");
+
+                DynValue result = _script.DoString(source, null, name + ".lua");
+                if (result.Type == DataType.Nil) result = DynValue.True;
+                loaded.Set(name, result);
+                return result;
+            });
+
+            _script.Globals.Set("require", require);
+            Debug.Log("[Dino] MoonSharp did not register require; installed fallback loader.");
         }
 
         void Update()
@@ -95,7 +149,8 @@ namespace DinoImpact
             catch (Exception e)
             {
                 ErrorCount++;
-                Debug.LogError("[Dino] Lua update error (" + ErrorCount + "): " + e.Message + "\n" + e.StackTrace);
+                string detail = e is ScriptRuntimeException lua ? lua.DecoratedMessage : e.Message;
+                Debug.LogError("[Dino] Lua update error (" + ErrorCount + "): " + detail + "\n" + e.StackTrace);
                 if (ErrorCount == 1) ShowError("Lua error:\n" + e.Message);
                 if (ErrorCount >= 10)
                 {
@@ -151,6 +206,8 @@ namespace DinoImpact
         {
             LastError = e.ToString();
             Ready = false;
+            if (e is ScriptRuntimeException lua)
+                Debug.LogError("[Dino] Lua boot error: " + lua.DecoratedMessage);
             Debug.LogException(e);
             ShowError(e.Message);
         }
