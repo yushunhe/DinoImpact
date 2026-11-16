@@ -219,12 +219,12 @@ check(P.hp == hpB, "滞空期间无视一切障碍")
 
 io.write("tree collision and one-shot obstacle cleanup\n")
 startFresh()
-check(Data.obstacles.tree.class == "block" and Data.obstacles.tree.radius >= 4.0,
-    "tree is a large blocking obstacle")
+check(Data.obstacles.tree.class == "block" and Data.obstacles.tree.radius <= 1.5,
+    "tree is a blocking obstacle with a trunk-sized hitbox")
 local hpTree = P.hp
-local tree = Game.debugSpawnObstacle("tree", P.x + 2.4, P.y)
+local tree = Game.debugSpawnObstacle("tree", P.x + 1.2, P.y)
 step(.05)
-check(P.hp == hpTree - 1, "the large tree damages the player")
+check(P.hp == hpTree - 1, "the tree damages the player")
 check(not tree.dead and Host.entity.exists(tree.id), "blocking trees stay after impact")
 startFresh()
 local bushHit = Game.debugSpawnObstacle("bush", P.x, P.y)

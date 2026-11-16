@@ -8,14 +8,15 @@ local D = {}
 -- low:  "矮，可被跳过" — only meaningful while airborne (jump pad / skills),
 --       which ignores everything anyway; kept for future jump input.
 
--- 1113 反馈：占地全面放大（"树撞上去不扣血"= 判定圈小于视觉；效果类
--- 障碍"占地都太小"→ 放大，反正不掉血，鼓励大面积吃到）
+-- 1113 反馈：效果类障碍占地全面放大（反正不掉血，鼓励大面积吃到）。
+-- 树的判定圈按树干宽度走：4.5 会让整棵树变成一张大网，擦到树冠就掉血，
+-- 已调回 1.4。
 D.obstacles = {
     rock_small  = { sprite = "rock_small",  radius = .8,  class = "block", low = true  },
     rock        = { sprite = "rock",        radius = 1.1, class = "block", low = false },
     log_h       = { sprite = "log",         radius = 1.3, class = "block", low = true  },
     log_v       = { sprite = "log",         radius = 1.3, class = "block", low = false, rotZ = 90 },
-    tree        = { sprite = "tree",        radius = 4.5, class = "block", low = false },
+    tree        = { sprite = "tree",        radius = 1.4, class = "block", low = false },
     grass_tuft  = { sprite = "grass_tuft",  radius = 1.5, class = "slow",  low = true  },
     footprint   = { sprite = "footprint",   radius = 1.6, class = "slow",  low = true  },
     mud         = { sprite = "mud",         radius = 1.7, class = "boost", low = true  },
@@ -27,7 +28,7 @@ D.obstacles = {
 -- weighted pick for ordinary obstacle rows (1.2.5)
 D.obstacleWeights = {
     { "rock_small", 20 }, { "rock", 12 }, { "log_h", 10 }, { "log_v", 7 },
-    { "tree", 35 }, { "grass_tuft", 12 }, { "footprint", 8 }, { "mud", 8 },
+    { "tree", 10 }, { "grass_tuft", 12 }, { "footprint", 8 }, { "mud", 8 },
     { "bush", 12 }, { "mushroom", 7 }, { "spring", 6 },
 }
 
