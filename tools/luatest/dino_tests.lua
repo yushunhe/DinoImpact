@@ -323,6 +323,17 @@ Game.debugSpawnObstacle("rock", P.x, P.y + .2)
 steps(4, .05)
 check(P.hp == hpF, "flying ignores everything (全程无敌)")
 
+io.write("flying pteranodon crosses the grove field\n")
+startFresh()
+P.flyT = 5
+local flyHp = P.hp
+T.spawnGroveField(P.x, P.y + 4)
+local flyY0 = P.y
+steps(20, .05)
+check(P.hp == flyHp, "flying over the grove field costs nothing")
+check(P.y > flyY0 + 4,
+    "flying crosses the grove field instead of being pushed back")
+
 io.write("flight still allows egg pickup and mount swaps\n")
 startFresh()
 Game.debugSpawnMount("pter", P.x, P.y + 2.2)

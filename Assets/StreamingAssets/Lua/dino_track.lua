@@ -278,6 +278,9 @@ end
 local function hitObstacle(it, P)
     if it.mount then return end   -- 睡觉的恐龙：无害，径直路过（换乘走 J）
     if it.class == "block" then
+        -- 滞空/飞行期间无视一切障碍：既不受伤，也不能被碰撞圈推回去，
+        -- 否则翼龙技能会被小树林的大片碰撞圈挡住。
+        if P.airborneT > 0 or P.flyT > 0 then return end
         if P.chargeT > 0 then
             -- 三角龙/甲龙技能：撞飞普通阻拦型障碍。
             -- 树和小树林永远不消失，冲锋也只能穿过去。
