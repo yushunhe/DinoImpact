@@ -8,13 +8,20 @@ namespace DinoImpact
     [RequireComponent(typeof(Camera))]
     public class DinoVignette : MonoBehaviour
     {
+        // Preferred path: a material in Assets/Resources/Dino that references
+        // Surf/Vignette. Resources content is always packed into builds, while
+        // Shader.Find on an Always Included shader was not reliable in the Windows
+        // player (the first build logged "Surf/Vignette missing").
+        const string ResourcePath = "Dino/DinoVignette";
+
         Material _mat;
-        bool _missingShader;
+        bool _ownsMat;
+        bool _missing;
 
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
             float strength = DinoLighting.Vignette;
-            if (strength <= 0f || _missingShader || !EnsureMaterial())
+            if (strength <= 0f || _missing || !EnsureMaterial())
             {
                 Graphics.Blit(src, dst);
                 return;
@@ -26,20 +33,26 @@ namespace DinoImpact
         bool EnsureMaterial()
         {
             if (_mat != null) return true;
+
+            _mat = Resources.Load<Material>(ResourcePath);
+            if (_mat != null) return true;
+
             Shader sh = Shader.Find("Surf/Vignette");
             if (sh == null)
             {
                 Debug.LogWarning("[DinoVignette] Surf/Vignette missing, vignette disabled.");
-                _missingShader = true;
+                _missing = true;
                 return false;
             }
             _mat = new Material(sh) { name = "DinoVignette" };
+            _ownsMat = true;
             return true;
         }
 
         void OnDestroy()
         {
-            if (_mat != null) Destroy(_mat);
+            // Only destroy the material we created; Resources assets are shared.
+            if (_ownsMat && _mat != null) Destroy(_mat);
         }
     }
 }
