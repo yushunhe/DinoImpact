@@ -9,6 +9,7 @@ local T = require("dino_track")
 local Dino = require("dino_dinos")
 local M = require("dino_mount")
 local UI = require("dino_ui")
+local Light = require("dino_light")
 
 local Game = {
     state = "boot",
@@ -26,6 +27,17 @@ local function clearWorld()
     Host.entity.clear()
 end
 
+-- 光源候选（第 2 步）：玩家在第一位，其后是未被吃掉的蛋与果实。
+local function lightSources()
+    local out = { { x = P.x, y = P.y, kind = "player", seed = 0 } }
+    for _, it in ipairs(T.items) do
+        if not it.dead and (it.type == "egg" or it.type == "fruit") then
+            out[#out + 1] = { x = it.x, y = it.y, kind = it.type, seed = it.phase or 0 }
+        end
+    end
+    return out
+end
+
 local function currentScore()
     local S = Config.spawn
     return math.floor(P.distance + .5) + P.eggs * S.eggValue
@@ -35,6 +47,7 @@ end
 function Game.init()
     UI.init()
     UI.onAction = function(a) Game.onAction(a) end
+    Light.reset()
     Game.best = Host.save.getInt("best", 0)
     UI.setBest(Game.best)
     Host.audio.music(true)
@@ -140,6 +153,7 @@ function Game.onAction(a)
 end
 
 function Game.update(dt)
+    Light.tick(dt, Game.state == "playing" and lightSources() or nil)
     fx.update(dt)
     UI.update(dt)
 
@@ -249,6 +263,11 @@ end
 -- 不可通行的小树林大区域（由多棵 grove 拼成）。
 function Game.debugSpawnGroveField(x, y)
     return T.spawnGroveField(x or (P.x + 4), y or (P.y + 10))
+end
+
+-- 调试：切换光照时段，instant=true 直接跳（见 docs/lighting-plan.md）。
+function Game.debugSetTimeZone(name, instant)
+    Light.setZone(name, instant)
 end
 
 function Game.debugSpawnEgg(x, y)

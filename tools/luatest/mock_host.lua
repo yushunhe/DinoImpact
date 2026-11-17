@@ -22,6 +22,8 @@ function M.new()
 
     local host = {}
     local terrain = {}
+    local lightState = nil
+    local lightSources = { n = 0, flat = {} }
     local nextTerrainId = 1
     host.time = function() return now end
     host.log = function(s) io.write("[lua] " .. tostring(s) .. "\n") end
@@ -104,6 +106,15 @@ function M.new()
             return math.sin(x * .13 + t * .8) * .4 + math.cos(z * .09 - t * .6) * .35
         end,
         setTimeOfDay = noop,
+        setTint = function(tr, tg, tb, lr, lg, lb, br, bg, bb, vig)
+            lightState = {
+                tint = { tr, tg, tb }, lift = { lr, lg, lb }, bg = { br, bg, bb },
+                vignette = vig,
+            }
+        end,
+        setLights = function(n, flat, haloAlpha, haloScale)
+            lightSources = { n = n, flat = flat, haloAlpha = haloAlpha, haloScale = haloScale }
+        end,
         setWeather = noop,
         event = noop,
         splash = noop,
@@ -218,6 +229,8 @@ function M.new()
         advance = function(dt) now = now + dt end,
         time = function() return now end,
         entities = function() return ents end,
+        light = function() return lightState end,
+        lights = function() return lightSources end,
         buttons = function() return buttons end,
         labels = function() return labels end,
         texts = function() return texts end,

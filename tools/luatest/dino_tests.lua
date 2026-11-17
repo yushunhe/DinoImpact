@@ -701,5 +701,152 @@ check(hearts:find("♥"), "hearts render in the HUD")
 check((host._debug.texts().hud_arrows or ""):find("➳"), "arrow pips render")
 check((host._debug.texts().hud_mount or "") ~= "", "mount name shows (placeholder portrait)")
 
+io.write("lighting (global time-of-day tint, docs/lighting-plan.md)\n")
+local Light = require("dino_light")
+local Lc = Config.light
+local function near(a, b) return math.abs(a - b) < 1e-6 end
+local function sameRGB(a, b)
+    for i = 1, 3 do if not near(a[i], b[i]) then return false end end
+    return true
+end
+
+startFresh()
+step(.05)
+local dayNow = host._debug.light()
+check(dayNow and sameRGB(dayNow.tint, { 1, 1, 1 }) and sameRGB(dayNow.lift, { 0, 0, 0 }),
+    "default day zone is neutral (pre-lighting visuals unchanged)")
+check(dayNow and sameRGB(dayNow.bg, Lc.timeZones.day.bg), "day background matches the configured day bg")
+
+Game.debugSetTimeZone("night")
+step(.05)
+local mid = host._debug.light()
+check(mid and not sameRGB(mid.tint, Lc.timeZones.night.tint) and not sameRGB(mid.tint, { 1, 1, 1 }),
+    "night transition is in progress mid-blend")
+steps(60, .05)  -- 3 s, longer than Lc.transition
+check(sameRGB(host._debug.light().tint, Lc.timeZones.night.tint), "night tint is reached after the transition time")
+check(Light.zoneName() == "night", "zone name reports night")
+
+Game.debugSetTimeZone("dusk", true)
+step(.05)
+check(sameRGB(host._debug.light().tint, Lc.timeZones.dusk.tint), "instant switch jumps straight to dusk")
+
+Game.debugSetTimeZone("night")
+steps(10, .05)
+local beforeRetarget = Light.current().tint[1]
+Game.debugSetTimeZone("day")
+check(near(Light.current().tint[1], beforeRetarget), "retargeting mid-transition does not jump on screen")
+steps(60, .05)
+
+Lc.enabled = false
+step(.05)
+local off = host._debug.light()
+check(sameRGB(off.tint, { 1, 1, 1 }) and sameRGB(off.lift, { 0, 0, 0 }),
+    "light.enabled=false forces neutral tint regardless of zone")
+Game.debugSetTimeZone("dusk", true)
+step(.05)
+check(sameRGB(host._debug.light().tint, { 1, 1, 1 }), "disabled stays neutral even after a zone change")
+Lc.enabled = true
+step(.05)
+check(sameRGB(host._debug.light().tint, Lc.timeZones.dusk.tint), "re-enabling shows the current zone")
+Game.debugSetTimeZone("day", true)
+step(.05)
+
+local A = { tint = { 0, 0, 0 }, lift = { 0, 0, 0 }, bg = { 0, 0, 0 } }
+local B = { tint = { 1, 1, 1 }, lift = { 1, 1, 1 }, bg = { 1, 1, 1 } }
+check(near(Light.blend(A, B, 0).tint[1], 0) and near(Light.blend(A, B, 1).tint[1], 1),
+    "blend returns the endpoints at k=0 and k=1")
+check(near(Light.blend(A, B, .5).tint[1], .5), "blend is symmetric at the midpoint")
+check(A.tint[1] == 0 and B.tint[1] == 1, "blend does not mutate its inputs")
+
+io.write("local light sources (docs/lighting-plan.md 第 2 步)\n")
+local function srcs(list)
+    -- list[1] is the player; the rest are {x, y, kind, seed}
+    return list
+end
+
+-- pure selection: player first, nearest first, capped, range-limited
+local player = { x = 0, y = 0, kind = "player", seed = 0 }
+local near = { x = 2, y = 0, kind = "egg", seed = 1 }
+local far = { x = 9, y = 0, kind = "fruit", seed = 2 }
+local outOfRange = { x = 100, y = 0, kind = "egg", seed = 3 }
+-- sources[1] is the player by contract
+local picked = Light.pickLights(srcs({ player, far, near, outOfRange }), 8, 30)
+check(#picked == 3, "out-of-range sources are dropped (got " .. #picked .. ")")
+check(picked[1].x == 0 and picked[1].y == 0 and picked[1].r == Lc.sources.player.radius,
+    "the player light is always first")
+check(picked[2].x == 2, "the nearer egg is picked before the farther fruit")
+check(picked[3].x == 9, "the farther fruit follows")
+
+local crowd = { player }
+for i = 1, 14 do crowd[#crowd + 1] = { x = i * .5, y = 0, kind = "egg", seed = i } end
+local capped = Light.pickLights(crowd, Lc.maxLights, 30)
+check(#capped == Lc.maxLights, "light count is capped at maxLights (" .. #capped .. "/" .. Lc.maxLights .. ")")
+
+-- flicker stays within [1-amp, 1+amp] and is deterministic
+local amp = .1
+local inRange, deterministic = true, true
+for t = 0, 20, .13 do
+    local f = Light.flicker(t, 1.7, amp)
+    if f < 1 - amp - 1e-9 or f > 1 + amp + 1e-9 then inRange = false end
+    if Light.flicker(t, 1.7, amp) ~= f then deterministic = false end
+end
+check(inRange, "flicker stays inside [1-amp, 1+amp]")
+check(deterministic, "flicker is a pure function of (time, seed)")
+check(Light.flicker(3, 0, 0) == 1, "zero flicker amplitude means a constant 1")
+
+-- game integration: the mock receives the player light and the flat buffer
+startFresh()
+step(.05)
+-- Light.tick runs at the top of Game.update, before P.update, so the light
+-- is centred on where the player was at the start of the frame.
+local px0, py0 = P.x, P.y
+step(.05)
+local ls = host._debug.lights()
+check(ls.n >= 1, "during play the mock receives at least the player light (n=" .. ls.n .. ")")
+check(math.abs(ls.flat[1] - px0) < 1e-6 and math.abs(ls.flat[2] - py0) < 1e-6,
+    "the first light is centred on the player (start-of-frame position)")
+check(ls.flat[3] == Lc.sources.player.radius, "the first light uses the player radius")
+check(ls.n <= Lc.maxLights, "the game never sends more than maxLights lights")
+
+Game.enterMenu()
+step(.05)
+check(host._debug.lights().n == 0, "menu sends no light sources")
+
+startFresh()
+Lc.enabled = false
+step(.05)
+check(host._debug.lights().n == 0, "light.enabled=false sends zero light sources")
+check(sameRGB(host._debug.light().tint, { 1, 1, 1 }), "light.enabled=false keeps neutral tint too")
+Lc.enabled = true
+step(.05)
+check(host._debug.lights().n >= 1, "re-enabling restores the light sources")
+
+io.write("atmosphere: halos, vignette, contact shadow (docs/lighting-plan.md 第 3 步)\n")
+startFresh()
+step(.05)
+local tintNow = host._debug.light()
+check(math.abs(tintNow.vignette - Lc.vignette) < 1e-9, "vignette strength is sent to the host (" .. tostring(tintNow.vignette) .. ")")
+local lightsNow = host._debug.lights()
+check(math.abs(lightsNow.haloAlpha - Lc.halo.alpha) < 1e-9 and math.abs(lightsNow.haloScale - Lc.halo.scale) < 1e-9,
+    "halo alpha and scale are sent with the light list")
+
+Lc.enabled = false
+step(.05)
+check(host._debug.light().vignette == 0, "light.enabled=false turns the vignette off")
+Lc.enabled = true
+step(.05)
+
+local ox, oy = Light.shadowOffset()
+local sd = Lc.sunDir
+local slen = math.sqrt(sd[1] * sd[1] + sd[2] * sd[2])
+check(math.abs(math.sqrt(ox * ox + oy * oy) - Lc.shadowOffset) < 1e-9, "shadow offset length equals config shadowOffset")
+check(math.abs(ox - sd[1] / slen * Lc.shadowOffset) < 1e-9 and math.abs(oy - sd[2] / slen * Lc.shadowOffset) < 1e-9,
+    "shadow offset follows the normalised sunDir")
+
+local shadow = host._debug.entities()[P.shadowId]
+check(shadow ~= nil, "the player has a contact shadow entity")
+check(shadow and math.abs(shadow.x - (P.x + ox)) < 1e-6 and math.abs(shadow.y - (P.y + .04 + oy)) < 1e-6,
+    "the player shadow sits at the feet plus the sun offset")
+
 io.write("\n" .. (failures == 0 and "ALL DINO TESTS PASSED" or (failures .. " TEST(S) FAILED")) .. "\n")
 os.exit(failures == 0 and 0 or 1)

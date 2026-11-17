@@ -10,11 +10,13 @@ local Dino = require("dino_dinos")
 local I = require("input")
 local U = require("util")
 local fx = require("fx")
+local Light = require("dino_light")
 
 local H = Config.heading
 local R = Config.run
 local E = Config.effects
 local A = Config.arrow
+
 
 local function fxSound(name, vol)
     if Host.audio and Host.audio.play then Host.audio.play(name, vol or 1) end
@@ -54,6 +56,10 @@ local P = {
 }
 
 -- ------------------------------------------------------------------ speed
+-- 玩家接触阴影位置（第 3 步）：脚下 + 太阳方向偏移。
+local function shadowX() return P.x + (Light.shadowOffset()) end
+local function shadowY() local _, oy = Light.shadowOffset(); return P.y + .04 + oy end
+
 local function cruise()
     local ramp = 1 + R.rampStep * (P.distance / R.rampDist)
     return R.speed0 * math.min(R.rampMax, ramp)
@@ -118,7 +124,7 @@ end
 
 function P.syncVisual()
     if P.id then Host.entity.setPos(P.id, P.x, P.y, 0) end
-    if P.shadowId then Host.entity.setPos(P.shadowId, P.x, P.y + .04, .2) end
+    if P.shadowId then Host.entity.setPos(P.shadowId, shadowX(), shadowY(), .2) end
     if P.riderId then Host.entity.setPos(P.riderId, P.x, P.y + .85, -.1) end
     cameraSnap()
 end
@@ -162,7 +168,7 @@ function P.reset()
     P.onShield = nil
 
     P.clear()
-    P.shadowId = Host.entity.new(Config.sprites.shadow, P.x, P.y + .04, .2)
+    P.shadowId = Host.entity.new(Config.sprites.shadow, shadowX(), shadowY(), .2)
     Host.entity.setScale(P.shadowId, 1.05, .9, 1)
     P.id = Host.entity.new(P.spriteSet.idle, P.x, P.y, 0)
     Host.entity.setScale(P.id, 1.08, 1.08, 1)
@@ -416,7 +422,7 @@ function P.update(dt)
         Host.entity.setScale(P.riderId, .8 * airScale, .8 * airScale, 1)
     end
     if P.shadowId then
-        Host.entity.setPos(P.shadowId, P.x, P.y + .04, .2)
+        Host.entity.setPos(P.shadowId, shadowX(), shadowY(), .2)
         local shrink = air > 0 and .6 or 1
         local stretch = 1.0 + math.min(.25, speed * .02)
         Host.entity.setScale(P.shadowId, 1.05 * stretch * shrink, .9 * shrink, 1)

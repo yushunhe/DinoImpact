@@ -100,6 +100,37 @@ C.camera = {
     zoomRun = .6,
 }
 
+-- 光照（docs/lighting-plan.md 第 0/1 步）：全局时段色调。
+-- tint 乘到所有精灵/地面上，lift 加到暗部，bg 是相机背景色。
+-- 白天必须保持中性（tint=1, lift=0），让默认画面与改动前一致。
+-- 色值为占位，待基线截图后调整。
+C.light = {
+    enabled = true,       -- false: 强制中性（白天参数），用于 A/B 对比
+    zone = "day",         -- 启动时段
+    transition = 2.0,     -- 时段切换的过渡秒数（0 = 瞬切）
+    -- 局部光源（第 2 步）。maxLights 必须与 Surf/Sprite 里的数组长度一致（8）。
+    maxLights = 8,
+    pickRange = 30,       -- 只取离玩家这个距离内的蛋/果实（玩家光永远在）
+    sources = {
+        player = { radius = 6,   color = { 1, .86, .60 },  intensity = .9, flicker = .04 },
+        egg    = { radius = 3.5, color = { 1, .95, .75 },  intensity = .8, flicker = .08 },
+        fruit  = { radius = 3,   color = { .70, 1, .60 },  intensity = .7, flicker = .10 },
+    },
+    -- 光晕（第 3 步）：每盏光一个柔光圆盘，直径 = 半径 * scale，不透明度 = 强度 * alpha。
+    halo = { alpha = .14, scale = 1.8 },
+    -- 暗角（第 3 步）：屏幕边缘压暗的强度，0 关闭。
+    vignette = .25,
+    -- 接触阴影（第 3 步）：玩家脚下阴影随太阳方向偏移。sunDir 指向光来的方向的反方向。
+    sunDir = { -.4, -.6 },   -- 阴影投向的方向（会自动归一化）
+    shadowOffset = .35,      -- 偏移量（世界单位）
+    timeZones = {
+        dawn  = { tint = { 1.00, .86, .72 }, lift = { .10, .08, .14 }, bg = { .16, .14, .18 } },
+        day   = { tint = { 1, 1, 1 },        lift = { 0, 0, 0 },       bg = { .09, .15, .08 } },
+        dusk  = { tint = { 1.00, .74, .58 }, lift = { .14, .06, .10 }, bg = { .20, .10, .12 } },
+        night = { tint = { .52, .60, .86 },  lift = { .08, .10, .18 }, bg = { .04, .05, .10 } },
+    },
+}
+
 C.world = {
     decorCell = 4,       -- 密度翻倍：格子缩小，内容量按格计
     decorRadius = 8,     -- 半径同步放大，保持覆盖面不缩水

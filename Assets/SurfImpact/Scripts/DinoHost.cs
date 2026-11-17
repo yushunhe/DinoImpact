@@ -64,6 +64,7 @@ namespace DinoImpact
             var camGo = new GameObject("Main Camera");
             camGo.tag = "MainCamera";
             _camera = camGo.AddComponent<Camera>();
+            camGo.AddComponent<DinoVignette>();   // edge darkening, strength from Lua (第 3 步)
             _camera.orthographic = true;
             _camera.orthographicSize = 6.5f;
             _camera.clearFlags = CameraClearFlags.SolidColor;
@@ -85,6 +86,7 @@ namespace DinoImpact
 
             // One endless grass plane. It follows the camera and scrolls its UVs,
             // so the ground is infinite in every direction (no path edges).
+            DinoLighting.Init();   // before any sprite: tint globals must be set first
             Sprite grass = DinoPixelArt.Get("ground_grass");
             _groundMat = MakeGroundMaterial(grass, new Vector2(60f, 60f));
             // Keep the ground behind every gameplay sprite. Sprites are spawned
@@ -104,15 +106,10 @@ namespace DinoImpact
 
         Material MakeGroundMaterial(Sprite sprite, Vector2 tiling)
         {
-            // Player builds strip built-in shaders that no asset references, so
-            // Shader.Find("Unlit/Texture") can return null there (the old
-            // fallback ignored tiling and covered every sprite in the stale
-            // build). Surf/Unlit is in Always Included Shaders, honours
-            // _MainTex_ST, and is the safe first choice for the ground plane.
-            Shader shader = Shader.Find("Surf/Unlit");
-            if (shader == null) shader = Shader.Find("Unlit/Texture");
-            if (shader == null) shader = Shader.Find("Sprites/Default");
-            var mat = new Material(shader) { name = "DinoGround" };
+            // Surf/Sprite is in Always Included Shaders (player builds strip
+            // unreferenced built-ins, see docs/green-screen-fix.md), honours
+            // _MainTex_ST for the tiling, and carries the global time-of-day tint.
+            var mat = DinoLighting.NewSpriteMaterial("DinoGround");
             mat.mainTexture = sprite.texture;
             mat.mainTextureScale = tiling;
             return mat;
@@ -323,6 +320,40 @@ namespace DinoImpact
             world.Set("event", Fn((s, a) => DynValue.Nil));
             world.Set("setAmbient", Fn((s, a) => DynValue.Nil));
             world.Set("setTimeOfDay", Fn((s, a) => DynValue.Nil));
+            // One call per frame from dino_light.lua: tint and lift go to the
+            // shader globals, bg to the camera (docs/lighting-plan.md 第 1 步).
+            world.Set("setTint", Fn((s, a) =>
+            {
+                DinoLighting.Apply(
+                    new Color(FArg(a, 0, 1f), FArg(a, 1, 1f), FArg(a, 2, 1f)),
+                    new Color(FArg(a, 3, 0f), FArg(a, 4, 0f), FArg(a, 5, 0f)),
+                    FArg(a, 9, 0f));
+                if (_camera != null)
+                    _camera.backgroundColor = new Color(FArg(a, 6, .09f), FArg(a, 7, .15f), FArg(a, 8, .08f), 1f);
+                return DynValue.Nil;
+            }));
+            // Local light sources (第 2 步): setLights(count, flat) where flat holds
+            // 7 numbers per light: x, y, radius, r, g, b, intensity (1-based).
+            world.Set("setLights", Fn((s, a) =>
+            {
+                int n = IntArg(a, 0, 0);
+                Table flat = a.Count > 1 && a[1].Type == DataType.Table ? a[1].Table : null;
+                int count = 0;
+                if (flat != null)
+                {
+                    for (int k = 0; k < n && k < DinoLighting.MaxLights; k++)
+                    {
+                        int b = k * 7;
+                        DinoLighting.SetLight(k,
+                            (float)flat.Get(b + 1).Number, (float)flat.Get(b + 2).Number, (float)flat.Get(b + 3).Number,
+                            new Color((float)flat.Get(b + 4).Number, (float)flat.Get(b + 5).Number, (float)flat.Get(b + 6).Number),
+                            (float)flat.Get(b + 7).Number);
+                        count++;
+                    }
+                }
+                DinoLighting.CommitLights(count, FArg(a, 2, 0f), FArg(a, 3, 0f));
+                return DynValue.Nil;
+            }));
 
             // ------------------------------------------------------------- camera
             camera.Set("set2d", Fn((s, a) =>
@@ -490,10 +521,12 @@ namespace DinoImpact
 
         int Spawn(string kind, float x, float y, float z)
         {
+            DinoLighting.Init();
             int id = _nextId++;
             var go = new GameObject(kind + "_" + id);
             var sr = go.AddComponent<SpriteRenderer>();
             sr.sprite = DinoPixelArt.Get(kind);
+            sr.sharedMaterial = DinoLighting.SpriteMaterial;
             sr.color = Color.white;
             go.transform.position = new Vector3(x, y, z);
 
@@ -541,9 +574,7 @@ namespace DinoImpact
             int id = _nextTerrainId++;
             Texture2D tex = DinoPixelArt.GroundPatch(kind, tx, ty, variant);
 
-            Shader shader = Shader.Find("Sprites/Default");
-            if (shader == null) shader = Shader.Find("Unlit/Transparent");
-            var mat = new Material(shader) { name = "Terrain_" + kind + "_" + id };
+            var mat = DinoLighting.NewSpriteMaterial("Terrain_" + kind + "_" + id);
             mat.mainTexture = tex;
 
             // Between the scrolling base plane (z=20) and gameplay sprites (z=0).
