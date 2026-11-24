@@ -942,20 +942,6 @@ namespace DinoImpact
                 }
             }
 
-            // taller blade row along the bottom edge (reference B1)
-            for (int i = 0; i < 16; i++)
-            {
-                int x = rng.Range(0, GroundTileSize - 1);
-                int h = rng.Range(3, 8);
-                int lean = rng.Range(-1, 1);
-                Color32 col = rng.Float() < .5f ? deep : mid;
-                for (int k = 0; k < h; k++)
-                {
-                    int xx = x + Mathf.RoundToInt(lean * (k / (float)h));
-                    TSet(c, xx, k, col);
-                    if (k > 2 && rng.Float() < .25f) TSet(c, xx, k + 1, light);
-                }
-            }
             return GroundSprite(c, "ground_fern");
         }
 
@@ -1069,9 +1055,8 @@ namespace DinoImpact
         static readonly Dictionary<string, Texture2D> PatchCache = new Dictionary<string, Texture2D>();
 
         /// <summary>
-        /// Builds a one-off patch texture: the tiling biome texture repeated over
-        /// tilesX x tilesY tiles, with a pixel-dithered organic border so the
-        /// patch fades into the grass instead of reading as a rectangle.
+        /// Uses a whole painted patch for each biome variant. The procedural
+        /// tiles supply the fallback for projects with missing terrain art.
         /// </summary>
         public static Texture2D GroundPatch(string kind, int tilesX, int tilesY, int variant)
         {
@@ -1079,6 +1064,14 @@ namespace DinoImpact
             tilesX = Mathf.Clamp(tilesX, 1, 12);
             tilesY = Mathf.Clamp(tilesY, 1, 12);
             variant &= 3;
+            string artKey = "terrain_" + kind + "_" + variant;
+            if (!PatchCache.TryGetValue(artKey, out Texture2D painted))
+            {
+                painted = Resources.Load<Texture2D>("Dino/" + artKey);
+                PatchCache[artKey] = painted;
+            }
+            if (painted != null) return painted;
+
             string key = kind + ":" + tilesX + "x" + tilesY + ":" + variant;
             if (PatchCache.TryGetValue(key, out Texture2D cached)) return cached;
 
@@ -1089,24 +1082,37 @@ namespace DinoImpact
             int w = tw * tilesX;
             int h = th * tilesY;
             var px = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                    px[y * w + x] = src[(y % th) * tw + (x % tw)];
-
-            // Ragged edge: keep probability rises with distance from the border,
-            // so the fringe is a scattered pixel dissolve rather than a fade.
             uint seed = (uint)(variant * 0x9E3779B9 + tilesX * 7919 + tilesY * 104729
                 + (kind == "swamp" ? 17 : 0));
             var rng = new Rng(seed);
-            int edge = Mathf.Max(4, Mathf.Min(w, h) / 7);
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
+            float phase = rng.Range(0f, 100f);
+            float opacity = kind == "fern" ? .52f : .85f;
+            for (int row = 0; row < tilesY; row++)
+            {
+                for (int col = 0; col < tilesX; col++)
                 {
-                    int d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y));
-                    if (d >= edge) continue;
-                    float t = d / (float)edge;
-                    if (rng.Float() > t * t) px[y * w + x].a = 0;
+                    // Different slices of the biome tile keep rosettes and pools
+                    // from marching in rows across a large ground patch.
+                    int offsetX = rng.Range(0, tw - 1);
+                    int offsetY = rng.Range(0, th - 1);
+                    for (int y = 0; y < th; y++)
+                    {
+                        int py = row * th + y;
+                        float v = 2f * (py + .5f) / h - 1f;
+                        for (int x = 0; x < tw; x++)
+                        {
+                            int ix = col * tw + x;
+                            float u = 2f * (ix + .5f) / w - 1f;
+                            float noise = Mathf.PerlinNoise(phase + 2.4f * u, phase + 2.4f * v);
+                            float cover = Mathf.Clamp01((.65f + .34f * noise - u * u - v * v) * 3.5f);
+                            if (cover == 0f) continue;
+                            Color32 color = src[((y + offsetY) % th) * tw + (x + offsetX) % tw];
+                            color.a = (byte)(color.a * cover * opacity * (.6f + .4f * noise));
+                            px[py * w + ix] = color;
+                        }
+                    }
                 }
+            }
 
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
             {

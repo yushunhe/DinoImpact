@@ -26,8 +26,10 @@ placeholder.
   flower.png         small flower decoration
   pebble.png         small ground detail
   ground_grass.png   seamless moss, short meadow grass, windswept grass and dry grass
-  ground_fern.png    tiling fern-ground texture (terrain patches)
-  ground_swamp.png   tiling swamp texture (terrain patches)
+  terrain_fern_0.png ... terrain_fern_3.png    four fern beds on transparent ground
+  terrain_swamp_0.png ... terrain_swamp_3.png  four marsh pools with painted shorelines
+  ground_fern.png    fallback tile for missing fern bed variants
+  ground_swamp.png   fallback tile for missing marsh pool variants
   ground_path.png    tiling dirt-path texture
 
 Regenerate the grassland with `python3 tools/art/make_grassland.py` (NumPy and
