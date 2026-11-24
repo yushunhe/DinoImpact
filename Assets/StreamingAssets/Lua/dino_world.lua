@@ -7,7 +7,7 @@
 -- demand and culled once they are far behind.
 local Config = require("dino_config")
 
-local CELL = Config.world.decorCell
+local CELL = Config.terrain.cell
 local RADIUS = Config.world.decorRadius      -- cells generated around the player
 local CULL = RADIUS + 1                      -- hysteresis: keep one extra ring
 
@@ -15,13 +15,13 @@ local W = {
     cells = {},
 }
 
--- PlantsPixelIt 素材：树蕨/扇叶树/苏铁当大目标，其余新植被撒作细节
--- （世界高度已在 DinoPixelArt.PlantUnits 里归一，缩放只是微调随机感）
--- 树已从装饰池移除：它现在是专门的障碍物（dino_data.obstacles.tree），
--- 免得场上同时存在"看起来一样但不扣血"的装饰树。
-local BIG = { "palm", "cycad", "fern", "bush", "rock_small" }
-local DETAIL = { "pebble", "flower", "horsetail", "horsetail_cone", "crown",
-                 "crown_small", "clubmoss_small", "fern_frond", "fern" }
+-- One dominant species, related understory and occasional accent per habitat.
+-- Obstacle sprites stay in the track director so hazards remain recognizable.
+local communities = {
+    meadow = { tall = { "cycad", "palm" }, low = { "fern", "fern_frond" }, edge = "clubmoss_small" },
+    fern = { tall = { "cycad", "fern" }, low = { "fern", "fern_frond" }, edge = "crown_small" },
+    swamp = { tall = { "horsetail", "horsetail_cone" }, low = { "horsetail", "horsetail_cone" }, edge = "fern_frond" },
+}
 
 -- Park-Miller LCG. Pure arithmetic so it behaves identically in Lua 5.2
 -- (MoonSharp) and 5.4, and each cell always rolls the same scenery.
@@ -42,7 +42,8 @@ local function makeRng(seed)
 end
 
 local function cellSeed(cx, cy)
-    return (cx * 73856093 + cy * 19349663 + 1013904223) % 2147483647
+    local mix = (cx * 73856093 + cy * 19349663 + 1013904223) % 67108859
+    return (mix * mix + 7919) % 2147483647
 end
 
 local function cellKey(cx, cy)
@@ -149,34 +150,49 @@ local function spawnInCell(cx, cy)
     if W.cells[key] then return end
 
     local rng = makeRng(cellSeed(cx, cy))
-    local x0, y0 = cx * CELL, cy * CELL
+    local terrain = terrainPlan(cx, cy)
+    local habitat = communities[terrain and terrain.kind or "meadow"]
     local items = {}
 
     local function add(kind, x, y, scale)
         local id = Host.entity.new(kind, x, y, .1)
         Host.entity.setScale(id, scale, scale, 1)
+        Host.entity.setFlip(id, rng.chance(.5), false)
         items[#items + 1] = { id = id, x = x, y = y }
     end
 
-    -- Same average density as the old rows, just spread over the whole cell.
-    local bigs = 0
-    if rng.chance(.42) then bigs = 1 end
-    if rng.chance(.08) then bigs = bigs + 1 end
-    for _ = 1, bigs do
-        add(rng.pick(BIG),
-            x0 + rng.range(.12, .88) * CELL,
-            y0 + rng.range(.12, .88) * CELL,
-            rng.range(.8, 1.5))
+    -- A larger plant anchors one end. Smaller offsets follow a loose, bent
+    -- axis, sharing species within the patch and thinning toward its tip.
+    local function plantPatch(x, y, angle, size)
+        local dx, dy = math.cos(angle), math.sin(angle)
+        local dominant = rng.pick(habitat.tall)
+        local understory = rng.pick(habitat.low)
+        add(dominant, x, y, size)
+        for i = 1, rng.int(2, 4) do
+            local along = i * rng.range(.67, .94) * size
+            local across = (rng.range(-.85, .85) + .07 * i * i) * size
+            add(understory, x + dx * along - dy * across, y + dy * along + dx * across,
+                size * rng.range(.65, .93))
+        end
+        add(habitat.edge, x - dx * size, y - dy * size, size * rng.range(.62, .86))
     end
 
-    local details = 0
-    if rng.chance(.30) then details = 1 end
-    if rng.chance(.08) then details = details + 1 end
-    for _ = 1, details do
-        add(rng.pick(DETAIL),
-            x0 + rng.range(.08, .92) * CELL,
-            y0 + rng.range(.08, .92) * CELL,
-            rng.range(.7, 1.1))
+    if terrain or rng.chance(Config.world.meadowCover) then
+        local angle = rng.range(0, 2 * math.pi)
+        local dx, dy = math.cos(angle), math.sin(angle)
+        local cxWorld, cyWorld = (cx + .5) * CELL, (cy + .5) * CELL
+        local reachX, reachY = CELL * .26, CELL * .26
+        if terrain then
+            local blob = terrain.blobs[1]
+            cxWorld, cyWorld = blob.x, blob.y
+            reachX, reachY = blob.w * .44, blob.h * .44
+        end
+        -- Fern beds and horsetails follow opposite banks of their own ground
+        -- patch. On open grass the same spacing leaves a meadow between groups.
+        plantPatch(cxWorld + dx * reachX, cyWorld + dy * reachY, angle + 1.5, rng.range(.94, 1.22))
+        if rng.chance(Config.world.companionPatch) then
+            plantPatch(cxWorld - dx * reachX, cyWorld - dy * reachY, angle - 1.1, rng.range(.62, .84))
+        end
     end
 
     W.cells[key] = { items = items, cx = cx, cy = cy }

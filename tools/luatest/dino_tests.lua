@@ -306,12 +306,22 @@ for i = 1, #T.items do
         fieldItem = T.items[i]
     end
 end
-local wantGrove = 0
-for i = 1, #Config.groveField.rowCounts do
-    wantGrove = wantGrove + Config.groveField.rowCounts[i]
+check(blockers == #field.crowns and blockers >= 4 and blockers <= 5,
+    "the landmark spawns each crown of its irregular outline")
+local connected = { [1] = true }
+for _ = 2, blockers do
+    for a, crown in ipairs(field.crowns) do
+        for b, other in ipairs(field.crowns) do
+            local dx, dy = crown.x - other.x, crown.hitY - other.hitY
+            if connected[a] and dx * dx + dy * dy < (crown.radius + other.radius)^2 then
+                connected[b] = true
+            end
+        end
+    end
 end
-check(blockers == wantGrove,
-    "grove field spawns a full triangular grid of blocking groves")
+local reached = 0
+for _ in pairs(connected) do reached = reached + 1 end
+check(reached == blockers, "the crowns form one continuous wood")
 check(fieldItem and fieldItem.hitY and fieldItem.hitY > fieldItem.y + 2,
     "field collision is centred on the canopy, not the empty ground below")
 check(T.isBlocked(P.x, P.y + 9), "grove field footprint is marked impassable")
@@ -705,6 +715,48 @@ check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
 check(sawEnemy, "the event director spawns nuisance dinos")
 check(sawMount, "sleeping mount dinos appear on the road")
 check(eggsTotal > 20, "a real run harvests eggs naturally (eggs=" .. eggsTotal .. ")")
+
+io.write("vegetation communities and revisits\n")
+do
+    W.reset({ x = 0, y = 0 })
+    local function patchSignature()
+        local patches, plants = {}, {}
+        for key, cell in pairs(W.cells) do
+            patches[key] = #cell.items
+            for _, item in ipairs(cell.items) do
+                local plant = host._debug.entities()[item.id]
+                plants[#plants + 1] = string.format("%s/%s/%.4f/%.4f/%.4f", key, plant.kind,
+                    item.x, item.y, plant.scale[1])
+            end
+        end
+        table.sort(plants)
+        return table.concat(plants, "|"), patches
+    end
+    local habitats = {}
+    local wetlandPlants = { horsetail = true, horsetail_cone = true, fern_frond = true }
+    for _, cell in pairs(W.cells) do
+        local terrain = W.debugTerrainPlan(cell.cx, cell.cy)
+        if terrain and terrain.kind == "swamp" then
+            for _, item in ipairs(cell.items) do
+                habitats[#habitats + 1] = host._debug.entities()[item.id].kind
+            end
+        end
+    end
+    local wetland = #habitats > 0
+    for _, kind in ipairs(habitats) do wetland = wetland and wetlandPlants[kind] end
+    check(wetland, "swamp banks grow horsetail communities")
+    local original, patches = patchSignature()
+    local empty, clustered = 0, true
+    for _, count in pairs(patches) do
+        if count == 0 then empty = empty + 1
+        elseif count < 4 then clustered = false end
+    end
+    check(empty > 0 and clustered and original ~= "", "open meadow cells alternate with groups of plants")
+    W.update(.05, { x = -220, y = 160 })
+    check(W.cells["0:0"] == nil, "departed vegetation cells unload")
+    W.update(.05, { x = 0, y = 0 })
+    check(patchSignature() == original, "revisiting regenerates the same plants, positions and sizes")
+end
 
 io.write("terrain biomes: mostly grass, some fern, rare swamp\n")
 local counts = { grass = 0, fern = 0, swamp = 0 }
