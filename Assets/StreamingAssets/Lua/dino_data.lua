@@ -105,41 +105,41 @@ D.mounts = {
         boostMul = 2.2, boostDur = 2.5,     -- 1113：持续加长（配特效见 player）
     },
     trike = {
-        label = "TRICERATOPS", speedMul = .92, uses = 1, def = 2,
+        label = "TRICERATOPS", speedMul = .92, uses = 1, def = 2, riderSeat = .82,
         active = "charge", passive = nil,
         run = { "mount_trike_run0", "mount_trike_run1" },
         idle = "mount_trike_run0", sleep = "mount_trike_sleep",
         chargeDur = 3.5,                    -- 1113：持续加长
     },
     ankylo = {
-        label = "ANKYLOSAURUS", speedMul = .88, uses = 1, def = 3,
+        label = "ANKYLOSAURUS", speedMul = .88, uses = 1, def = 3, riderSeat = .86,
         active = "charge", passive = nil,
         run = { "mount_ankylo_run0", "mount_ankylo_run1" },
         idle = "mount_ankylo_run0", sleep = "mount_ankylo_sleep",
         chargeDur = 3.5,                    -- 1113：持续加长
     },
     trex = {
-        label = "T-REX HATCHLING", speedMul = 1.00, uses = 5, def = 3,   -- 1113：10→5
+        label = "T-REX HATCHLING", speedMul = 1.00, uses = 5, def = 3, riderSeat = .76,
         active = "jump", passive = "devour",
         run = { "mount_trex_run0", "mount_trex_run1" },
         idle = "mount_trex_run0", sleep = "mount_trex_sleep",
         jumpDur = .7, devourR = 1.7,
     },
     dein = {
-        label = "DEINONYCHUS", speedMul = 1.08, uses = 5, def = 1,       -- 1113：10→5
+        label = "DEINONYCHUS", speedMul = 1.08, uses = 5, def = 1, riderSeat = .55,
         active = "jump", passive = "spread",   -- 1113：被动改为一箭变三箭（耗 1 支）
         run = { "mount_dein_run0", "mount_dein_run1" },
         idle = "mount_dein_run0", sleep = "mount_dein_sleep",
         jumpDur = .7,
     },
     para = {
-        label = "PARASAUROLOPHUS", speedMul = .95, uses = 2, def = 2,   -- 2 崽
+        label = "PARASAUROLOPHUS", speedMul = .95, uses = 2, def = 2, riderSeat = .82,
         active = nil, passive = "shield",
         run = { "mount_para_run0", "mount_para_run1" },
         idle = "mount_para_run0", sleep = "mount_para_sleep",
     },
     pter = {
-        label = "PTERANODON", speedMul = 1.05, uses = 1, def = 1,
+        label = "PTERANODON", speedMul = 1.05, uses = 1, def = 1, riderSeat = .72,
         active = "fly", passive = nil,
         run = { "mount_pter_run0", "mount_pter_run1" },
         idle = "mount_pter_run0", sleep = "mount_pter_sleep",

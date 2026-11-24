@@ -37,7 +37,7 @@ local P = {
     blockT = 0,           -- 在树/小树林里缓慢无敌移动（track 每帧续）
 
     -- archery (1.2.3)
-    arrows = A.max, arrowT = 0,
+    arrows = A.max, arrowT = 0, shootPoseT = 0,
 
     -- 1113 反馈：S 按住 = 停止前进（恐龙事件仍会来找你）
     braking = false,
@@ -49,7 +49,7 @@ local P = {
     spriteSet = { run = { "dino_run0", "dino_run1" }, idle = "dino_idle" },
 
     id = nil, shadowId = nil, riderId = nil,
-    animT = 0, frame = 0, spriteName = nil,
+    animT = 0, frame = 0, spriteName = nil, riderSprite = nil,
     cam = { x = 0, y = Config.camera.yOffset, size = Config.camera.size },
 }
 
@@ -116,10 +116,34 @@ local function cameraFollow(dt)
     Host.camera.set2d(P.cam.x, P.cam.y, P.cam.size)
 end
 
+local function setRiderSprite()
+    local poses = P.shootPoseT > 0 and Config.sprites.riderShoot or Config.sprites.riderIdle
+    local name = poses[P.arrows]
+    if P.riderSprite ~= name then
+        Host.entity.setSprite(P.riderId, name)
+        P.riderSprite = name
+    end
+end
+
+local function syncRider(mountY, tilt, airScale, visible)
+    if not P.riderId then return end
+    local bodyScale = Config.dinoScale * airScale
+    local seat = (P.spriteSet.riderSeat or Config.rider.seat) * bodyScale
+    local angle = -tilt * U.rad
+    local scale = Config.rider.scale * bodyScale
+    setRiderSprite()
+    Host.entity.setPos(P.riderId, P.x + math.sin(angle) * seat, mountY + math.cos(angle) * seat, -.3)
+    Host.entity.setRot(P.riderId, 0, 0, tilt)
+    Host.entity.setScale(P.riderId, scale, scale, 1)
+    -- Sort by the mount's ground position so the rider stays above its back.
+    Host.entity.setOrder(P.riderId, math.floor(-mountY * 8 + .5) + 1)
+    Host.entity.setVisible(P.riderId, visible)
+end
+
 function P.syncVisual()
     if P.id then Host.entity.setPos(P.id, P.x, P.y, 0) end
     if P.shadowId then Host.entity.setPos(P.shadowId, P.x, P.y + .04, .2) end
-    if P.riderId then Host.entity.setPos(P.riderId, P.x, P.y + .85, -.1) end
+    syncRider(P.y, -headingAngle(), 1, true)
     cameraSnap()
 end
 
@@ -138,7 +162,7 @@ function P.clear()
     for _, k in ipairs({ "id", "shadowId", "riderId" }) do
         if P[k] then Host.entity.kill(P[k]); P[k] = nil end
     end
-    P.spriteName = nil
+    P.spriteName, P.riderSprite = nil, nil
 end
 
 function P.reset()
@@ -154,7 +178,7 @@ function P.reset()
     P.boostSkillT, P.boostSkillMul, P.pushT = 0, 1, 0
     P.blockT = 0
     P.effectCd = 0
-    P.arrows, P.arrowT = A.max, 0
+    P.arrows, P.arrowT, P.shootPoseT = A.max, 0, 0
     P.braking, P.shotSpread, P.fxT = false, false, 0
     P.mountMul = 1
     P.animT, P.frame = 0, 0
@@ -163,16 +187,19 @@ function P.reset()
 
     P.clear()
     P.shadowId = Host.entity.new(Config.sprites.shadow, P.x, P.y + .04, .2)
-    Host.entity.setScale(P.shadowId, 1.05, .9, 1)
+    Host.entity.setScale(P.shadowId, 1.05 * Config.dinoScale, .9 * Config.dinoScale, 1)
     P.id = Host.entity.new(P.spriteSet.idle, P.x, P.y, 0)
-    Host.entity.setScale(P.id, 1.08, 1.08, 1)
-    P.riderId = Host.entity.new(Config.sprites.rider, P.x, P.y + .85, -.1)
+    Host.entity.setScale(P.id, 1.08 * Config.dinoScale, 1.08 * Config.dinoScale, 1)
+    P.riderSprite = Config.sprites.riderIdle[P.arrows]
+    P.riderId = Host.entity.new(P.riderSprite, P.x, P.y, -.3)
+    syncRider(P.y, 0, 1, true)
     cameraSnap()
     setSprite(P.spriteSet.idle)
 end
 
 function P.setMountSprites(set)
     P.spriteSet = set
+    setSprite(set.idle)
 end
 
 -- A pressed: one step left. D pressed: one step right. W: snap to 中.
@@ -291,6 +318,7 @@ function P:shoot()
     if P.stunned or not P.alive then return false end
     if P.arrows < 1 then return false end
     P.arrows = P.arrows - 1
+    P.shootPoseT = Config.rider.shootPoseTime
     if P.arrows == A.max - 1 then P.arrowT = A.regen end
     local a = headingAngle()
     -- 骑驰龙时强化为三箭扇形，仍只消耗一支（1113 反馈）
@@ -319,9 +347,8 @@ function P.update(dt)
 
     -- steer / shoot edges
     steerEdge()
-    if I.shoot() then
-        if P:shoot() then fxSound(Config.juice.shootSound, .5) end
-    end
+    P.shootPoseT = math.max(0, P.shootPoseT - dt)
+    if I.shoot() and P:shoot() then fxSound(Config.juice.shootSound, .5) end
 
     -- timers
     local dec = function(t) return math.max(0, t - dt) end
@@ -400,26 +427,23 @@ function P.update(dt)
             airScale = 1 + .45 * math.sin(math.pi * U.clamp01(prog))
         end
     end
+    local mountY = P.y + (air > 0 and .5 or 0)
+    -- Only a grounded stun flashes, and the mount and rider flash together.
+    local blink = P.invulnT > 0 and P.stunned and air <= 0
+    local visible = not blink or math.floor(Host.time() / R.blinkRate) % 2 == 0
     if P.id then
-        Host.entity.setPos(P.id, P.x, P.y + (air > 0 and .5 or 0), -0.2)
+        Host.entity.setPos(P.id, P.x, mountY, -0.2)
         Host.entity.setRot(P.id, 0, 0, tilt)
-        Host.entity.setScale(P.id, 1.08 * airScale, 1.08 * airScale, 1)
-        -- 1113 反馈：闪烁只属于"受击停顿"；滞空/飞行/事后自由跑动不闪
-        local blink = P.invulnT > 0 and P.stunned
-            and P.airborneT <= 0 and P.flyT <= 0
-        Host.entity.setVisible(P.id, not blink
-            or math.floor(Host.time() / R.blinkRate) % 2 == 0)
+        local scale = 1.08 * Config.dinoScale * airScale
+        Host.entity.setScale(P.id, scale, scale, 1)
+        Host.entity.setVisible(P.id, visible)
     end
-    if P.riderId then
-        Host.entity.setPos(P.riderId, P.x, P.y + .85 + (air > 0 and .5 or 0), -.3)
-        Host.entity.setRot(P.riderId, 0, 0, tilt * .5)
-        Host.entity.setScale(P.riderId, .8 * airScale, .8 * airScale, 1)
-    end
+    syncRider(mountY, tilt, airScale, visible)
     if P.shadowId then
         Host.entity.setPos(P.shadowId, P.x, P.y + .04, .2)
-        local shrink = air > 0 and .6 or 1
+        local shadowScale = Config.dinoScale * (air > 0 and .6 or 1)
         local stretch = 1.0 + math.min(.25, speed * .02)
-        Host.entity.setScale(P.shadowId, 1.05 * stretch * shrink, .9 * shrink, 1)
+        Host.entity.setScale(P.shadowId, 1.05 * stretch * shadowScale, .9 * shadowScale, 1)
     end
 
     cameraFollow(dt)

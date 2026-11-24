@@ -28,9 +28,11 @@ namespace DinoImpact
         /// </summary>
         static Sprite Repivot(Sprite raw, string name)
         {
+            // Rider frames already have a shared saddle pivot in the importer.
+            if (name == "rider" || name.StartsWith("rider_")) return raw;
             Vector2 pivot = new Vector2(.5f, .5f);
             if (name.StartsWith("dino_") || name.StartsWith("mount_") ||
-                name.StartsWith("enemy_") || name == "rider")
+                name.StartsWith("enemy_"))
                 pivot = new Vector2(.5f, .14f);
             else if (name == "rock" || name == "rock_small" || name == "log" ||
                      name == "pebble" ||
@@ -119,6 +121,7 @@ namespace DinoImpact
             // Placeholder dinosaurs: same body, per-species palette + accessory.
             if (name.StartsWith("enemy_") || name.StartsWith("mount_"))
                 return GenDino(name);
+            if (name.StartsWith("rider_")) return Get("rider");
             return Missing();
         }
 

@@ -33,8 +33,7 @@ local function applyMount(key, P)
     local d = Data.mounts[key]
     M.current = { key = key, uses = d.uses }
     P.mountMul = d.speedMul
-    P.setMountSprites({ run = d.run, idle = d.idle })
-    if P.id then Host.entity.setSprite(P.id, d.idle) end
+    P.setMountSprites({ run = d.run, idle = d.idle, riderSeat = d.riderSeat })
     -- 驰龙被动：一箭变三箭（仍只消耗 1 支，1113 反馈）
     P.shotSpread = (d.passive == "spread")
     -- 鸭嘴龙：崽替玩家挡刀（1.2.7 护盾），"次数"即崽数
@@ -116,7 +115,9 @@ function M.syncChicks(P, force)
         end
     end
     while #M.chicks < want do
-        M.chicks[#M.chicks + 1] = Host.entity.new("enemy_para_baby", 0, -100, 0)
+        local chick = Host.entity.new("enemy_para_baby", 0, -100, 0)
+        Host.entity.setScale(chick, Config.dinoScale, Config.dinoScale, 1)
+        M.chicks[#M.chicks + 1] = chick
     end
     while #M.chicks > want do
         local c = table.remove(M.chicks)
@@ -124,7 +125,7 @@ function M.syncChicks(P, force)
     end
     for i = 1, #M.chicks do
         local side = (i % 2 == 1) and -1 or 1
-        Host.entity.setPos(M.chicks[i], P.x + side * .9 * math.ceil(i / 2), P.y - .5, .1)
+        Host.entity.setPos(M.chicks[i], P.x + side * .9 * Config.dinoScale * math.ceil(i / 2), P.y - .5 * Config.dinoScale, .1)
     end
 end
 
@@ -146,15 +147,17 @@ function M.update(dt, P, T)
 
     -- 绳索提示实体（1113 反馈）：范围里有睡觉龙就在它头顶晃绳子
     if M.prompt then
+        local ropeY = M.prompt.y + 1.5 * Config.dinoScale
         if not M.ropeId or not Host.entity.exists(M.ropeId) then
-            M.ropeId = Host.entity.new(Config.sprites.rope, M.prompt.x, M.prompt.y + 1.5, -.5)
+            M.ropeId = Host.entity.new(Config.sprites.rope, M.prompt.x, ropeY, -.5)
         end
         Host.entity.setPos(M.ropeId,
-            M.prompt.x + math.sin(Host.time() * 4) * .18, M.prompt.y + 1.5, -.5)
+            M.prompt.x + math.sin(Host.time() * 4) * .18, ropeY, -.5)
+        Host.entity.setOrder(M.ropeId, math.floor(-M.prompt.y * 8 + .5) + 2)
         M.ropeT = (M.ropeT or 0) - dt
         if M.ropeT <= 0 then
             M.ropeT = .45
-            fx.event("sparkle", M.prompt.x, M.prompt.y + 1.2, .4)
+            fx.event("sparkle", M.prompt.x, M.prompt.y + 1.2 * Config.dinoScale, .4)
         end
     elseif M.ropeId then
         if Host.entity.exists(M.ropeId) then Host.entity.kill(M.ropeId) end
@@ -166,7 +169,9 @@ function M.update(dt, P, T)
         local it = M.prompt
         -- 旧恐龙留在原地，逐渐退出视野
         local dOld = Data.mounts[M.current.key]
-        M.strays[#M.strays + 1] = Host.entity.new(dOld.idle, P.x, P.y, 0)
+        local stray = Host.entity.new(dOld.idle, P.x, P.y, 0)
+        Host.entity.setScale(stray, Config.dinoScale, Config.dinoScale, 1)
+        M.strays[#M.strays + 1] = stray
         Dino.dropSleepMount(it)   -- 射杀目标随之消失（不算击杀数）
         T.removeMount(it)
         applyMount(it.kind, P)

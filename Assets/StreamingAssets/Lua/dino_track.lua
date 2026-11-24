@@ -65,7 +65,9 @@ end
 function T.addSleepDino(mountKey, x, y)
     local m = Data.mounts[mountKey]
     local id = Host.entity.new(m.sleep, x, y, 0)
-    local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1, -.4)
+    Host.entity.setScale(id, Config.dinoScale, Config.dinoScale, 1)
+    local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1 * Config.dinoScale, -.4)
+    Host.entity.setOrder(zid, math.floor(-y * 8 + .5) + 1)
     -- 换乘范围圈（反馈1）：圈内按 K 就能换，玩家一眼看到可换位置
     local rid = Host.entity.new(Config.sprites.ring, x, y, -.15)
     local rd = Config.mount.range * 2
@@ -399,7 +401,8 @@ function T.update(dt, P)
                 < (P.radius + it.radius) ^ 2
             if overlap and isTreeBlock(it) then treeOverlap = true end
             if it.type == "mount" and it.zzz and Host.entity.exists(it.zzz) then
-                Host.entity.setPos(it.zzz, it.x, it.y + 1.1 + math.sin(now * 2 + it.y) * .08, -.4)
+                Host.entity.setPos(it.zzz, it.x, it.y + 1.1 * Config.dinoScale + math.sin(now * 2 + it.y) * .08, -.4)
+                Host.entity.setOrder(it.zzz, math.floor(-it.y * 8 + .5) + 1)
             end
             if it.type == "mount" and it.ring and Host.entity.exists(it.ring) then
                 local k = Config.mount.range * 2 * (1 + .035 * math.sin(now * 2.2 + it.y))

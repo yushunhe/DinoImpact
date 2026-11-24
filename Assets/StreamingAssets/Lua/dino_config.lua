@@ -188,15 +188,25 @@ C.mount = {
     range = 5.5,        -- 1113 反馈：判断距离再放大，且有绳索实体特效提示
 }
 
+-- Linear sprite scale: 1.5 gives dinosaurs 2.25 times their previous area.
+C.dinoScale = 1.5
+
 -- player body / animation
 C.player = {
     radius = .55,
     animRate = .11,
 }
 
+C.rider = {
+    shootPoseTime = .16,
+    scale = .88,  -- relative to dinoScale
+    seat = .30,
+}
+
 C.sprites = {
     shadow = "shadow",
-    rider = "rider",
+    riderIdle = { [0] = "rider_idle_0", "rider_idle_1", "rider_idle_2", "rider" },
+    riderShoot = { [0] = "rider_shoot_0", "rider_shoot_1", "rider_shoot_2", "rider_shoot_3" },
     arrow = "arrow",
     zzz = "zzz",
     rope = "rope_prompt",

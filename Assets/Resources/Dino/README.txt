@@ -10,6 +10,9 @@ placeholder.
   dino_run1.png      run frame 1 (pass)
   dino_run2.png      run frame 2 (right foot forward)
   dino_run3.png      run frame 3 (pass)
+  rider.png         rider at rest with a full quiver
+  rider_idle_*.png  rider at rest with 0–2 arrows
+  rider_shoot_*.png rider releasing the bow with 0–3 arrows in the quiver
   shadow.png         soft ground shadow under the player
   egg.png            collectible egg
   rock.png           large obstacle
@@ -30,6 +33,11 @@ placeholder.
 Regenerate the grassland with `python3 tools/art/make_grassland.py` (NumPy and
 Pillow). The 1024 px texture repeats every 64 world units. Import it with
 16 pixels per unit, Point filtering and Repeat wrapping on both axes.
+
+Regenerate the aligned 40×48 px rider sprites with `python3 tools/art/make_rider.py`
+(Pillow). It cuts both poses from `tools/art/rider-poses.png`, the pixel-art
+adaptation of the artist's rider, and adds the visible arrows for each count.
+Import at 32 pixels per unit with Point filtering and a saddle pivot at (0.5, 0.34).
 
 Current vegetation set
 ----------------------

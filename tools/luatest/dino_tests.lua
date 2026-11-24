@@ -144,6 +144,74 @@ check(P.arrows == 0, "2 秒 CD 之前不回填（1.5 s 仍为空）")
 steps(15, .05)
 check(P.arrows >= 1, "arrows recharge after the 2 s cooldown")
 
+io.write("rider poses follow the quiver\n")
+startFresh()
+local function riderSprite()
+    local rider = host._debug.entities()[P.riderId]
+    return rider.sprite or rider.kind
+end
+check(riderSprite() == "rider", "a fresh run shows the full quiver")
+for remaining = 2, 0, -1 do
+    step(.05, { shoot = true })
+    check(riderSprite() == "rider_shoot_" .. remaining,
+        "a successful shot shows the release pose with " .. remaining .. " arrows")
+end
+step(.1)
+step(.05, { shoot = true })
+check(riderSprite() == "rider_shoot_0", "an empty shot does not change the active release pose")
+step(.05, { shoot = true })
+check(riderSprite() == "rider_idle_0", "an empty shot does not restart the release pose")
+for restored = 1, 3 do
+    steps(40, .05)
+    local expected = restored == 3 and "rider" or "rider_idle_" .. restored
+    check(P.arrows == restored and riderSprite() == expected,
+        "the idle quiver shows " .. restored .. " arrows after automatic refill")
+end
+step(.05, { right = true })
+local riderEntity = host._debug.entities()[P.riderId]
+local mountEntity = host._debug.entities()[P.id]
+check(riderEntity.x > mountEntity.x and riderEntity.rot[3] == mountEntity.rot[3],
+    "the rider stays seated on the mount when turning")
+P:hurt(false)
+local blinkTogether, sawBlink = true, false
+for _ = 1, 6 do
+    step(.05)
+    blinkTogether = blinkTogether and riderEntity.visible == mountEntity.visible
+    sawBlink = sawBlink or not mountEntity.visible
+end
+check(blinkTogether and sawBlink, "the rider blinks with the stunned mount")
+
+startFresh()
+step(.05, { shoot = true })
+P.arrowT = .02
+step(.05)
+check(P.arrows == 3 and riderSprite() == "rider_shoot_3",
+    "a quiver refilled during the release pose shows all three arrows")
+
+io.write("character scale and saddle alignment\n")
+startFresh()
+local entities = host._debug.entities()
+local sleeping = T.addSleepDino("trike", P.x, P.y)
+check(entities[sleeping.id].scale[1] == Config.dinoScale, "sleeping mount uses the dinosaur scale")
+D.spawnEvent("para", P, P.y + 15)
+local wild = D.enemies[#D.enemies]
+check(entities[wild.id].scale[1] == Config.dinoScale, "wild dinosaurs use the same scale")
+step(.05, { mount = true })
+step(.05)
+local function checkMountedScale(airScale)
+    local mount = entities[P.id]
+    local rider = entities[P.riderId]
+    local factor = Config.dinoScale * airScale
+    check(math.abs(mount.scale[1] - 1.08 * factor) < .001
+        and math.abs(rider.scale[1] - Config.rider.scale * factor) < .001
+        and math.abs(rider.y - mount.y - Data.mounts.trike.riderSeat * factor) < .001,
+        "mount, rider and saddle position scale together at air scale " .. airScale)
+end
+checkMountedScale(1)
+P:fly(1)
+step(.05)
+checkMountedScale(1.4)
+
 io.write("arrow flight matches the heading (箭头朝向=玩家偏转方向)\n")
 startFresh()
 step(.05, { shoot = true })
