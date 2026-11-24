@@ -41,6 +41,7 @@ namespace DinoImpact
         SurfParticles _fx;
         MeshRenderer _ground;
         Material _groundMat;
+        Vector2 _groundUvPerUnit;
         Vector3 _camBase;
 
         // additive screen shake, decayed over _shakeTime
@@ -86,17 +87,20 @@ namespace DinoImpact
             // One endless grass plane. It follows the camera and scrolls its UVs,
             // so the ground is infinite in every direction (no path edges).
             Sprite grass = DinoPixelArt.Get("ground_grass");
-            _groundMat = MakeGroundMaterial(grass, new Vector2(60f, 60f));
+            const float groundSize = 120f;
+            _groundUvPerUnit = new Vector2(grass.pixelsPerUnit / grass.texture.width,
+                                           grass.pixelsPerUnit / grass.texture.height);
+            _groundMat = MakeGroundMaterial(grass, groundSize * _groundUvPerUnit);
             // Keep the ground behind every gameplay sprite. Sprites are spawned
             // around z=0, so a ground plane at z=3 would depth-occlude them.
-            _ground = MakeQuad("Ground", 120f, _groundMat, 20f);
+            _ground = MakeQuad("Ground", groundSize, _groundMat, 20f);
             // The ground shader also supports tiling/offset (see
             // MakeGroundMaterial); it is a transparent shader, so draw it before
             // every sprite explicitly instead of relying on depth.
             _ground.sortingOrder = -30000;
 
             _fx = SurfParticles.Build(_camera.transform);
-            _audio = SurfAudio.Build();
+            _audio = SurfAudio.Build(Resources.Load<AudioClip>("Dino/DawnInFernValley"));
             _audio.SetAmbient(true);
 
             SyncVisuals();
@@ -160,7 +164,8 @@ namespace DinoImpact
             {
                 _ground.transform.position = new Vector3(p.x, p.y, _ground.transform.position.z);
                 if (_groundMat != null)
-                    _groundMat.mainTextureOffset = new Vector2(p.x / 2f, p.y / 2f);
+                    _groundMat.mainTextureOffset = new Vector2(p.x * _groundUvPerUnit.x,
+                                                              p.y * _groundUvPerUnit.y);
             }
 
             Vector3 shake = Vector3.zero;

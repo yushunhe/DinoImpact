@@ -22,10 +22,14 @@ placeholder.
   fern.png           fern decoration
   flower.png         small flower decoration
   pebble.png         small ground detail
-  ground_grass.png   tiling grass texture (base ground everywhere)
+  ground_grass.png   seamless moss, short meadow grass, windswept grass and dry grass
   ground_fern.png    tiling fern-ground texture (terrain patches)
   ground_swamp.png   tiling swamp texture (terrain patches)
   ground_path.png    tiling dirt-path texture
+
+Regenerate the grassland with `python3 tools/art/make_grassland.py` (NumPy and
+Pillow). The 1024 px texture repeats every 64 world units. Import it with
+16 pixels per unit, Point filtering and Repeat wrapping on both axes.
 
 Current vegetation set
 ----------------------
