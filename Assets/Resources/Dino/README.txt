@@ -43,19 +43,17 @@ Import at 32 pixels per unit with Point filtering and a saddle pivot at (0.5, 0.
 
 Current vegetation set
 ----------------------
-The 12 plant sprites (tree, palm, bush, cycad, fern, fern_frond, flower,
-clubmoss_small, horsetail, horsetail_cone, crown, crown_small) are generated
-from Assets/Art/gemini/*.jpg by (white points are recoloured and over-bright
-green foliage is capped so it does not read as white dots in game):
-
-  python tools/art/pixelate_gemini_plants.py
+Rebuild the current plant sprites, fern beds, and grove compositions with
+`python3 tools/art/make_vegetation.py` (Pillow). The transparent source atlases
+are under `tools/art/`, named canopy-atlas.png, understory-atlas.png, and
+fern-atlas.png. The tree fern uses its own tree-fern.png in the same folder.
+The export uses one foliage palette, with separate accent
+colors for bark, cones and clubmoss. Upright sprites retain their existing
+world heights and bottom-center pivots.
 
 Preview: tools/art/preview/gemini_plants_sheet.png
 
-Check or repair white points without rebuilding every sprite:
-
-  python tools/art/pixelate_gemini_plants.py --check
-  python tools/art/pixelate_gemini_plants.py --fix
+Check for white speckles with `python3 tools/art/pixelate_gemini_plants.py --check`.
 
 The 小树林 grove sprites (grove.png plus grove_2.png ~ grove_4.png) are
 composed from the same plants. The four silhouettes are a tall canopy with

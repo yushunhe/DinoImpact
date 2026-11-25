@@ -1,11 +1,8 @@
 #!/usr/bin/env python3
-"""Compose the "小树林" (grove) sprites from the Gemini plant set.
+"""Compose the "小树林" (grove) sprites from the current plant atlases.
 
-The seven Gemini reference renders are pixelated into the twelve sprites under
-Assets/Resources/Dino. This tool arranges those sprites into dense groves in
-the spirit of the reference composition: a tall central tree, smaller trees and
-palms behind, cycad/fern rosettes in the middle, low plants in front and grass
-clumps along the ground.
+Tall tree ferns anchor the canopy, with smaller trees, palms and cycads
+below them, low plants in front and grass clumps along the ground.
 
 It writes four silhouettes for the canopy and edge positions in each woodland:
 
@@ -152,10 +149,10 @@ def checkerboard(w: int, h: int, cell: int = 8) -> Image.Image:
 
 
 def contact_sheet(images: list[Image.Image], names: list[str],
-                  scale: int = 2, gap: int = 8, label: int = 14) -> Image.Image:
+                  scale: int = 2, gap: int = 8, label: int = 14,
+                  cols: int = 2) -> Image.Image:
     cell_w = max(im.width for im in images) * scale
     cell_h = max(im.height for im in images) * scale + label
-    cols = 2
     rows = (len(images) + cols - 1) // cols
     sheet = checkerboard(cols * cell_w + (cols + 1) * gap,
                          rows * cell_h + (rows + 1) * gap)

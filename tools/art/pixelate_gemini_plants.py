@@ -1,21 +1,13 @@
 #!/usr/bin/env python3
-"""Rebuild DinoImpact's plant sprites from the Gemini reference renders.
-
-The source JPGs are pixel-art renders with a baked checkerboard (or black)
-background. This tool removes that background, trims the silhouette, normalizes
-each plant to the game's 22 PPU world grid, quantizes it to a flat palette and
-cleans the cutout rim, recolors any remaining white points to plant green and
-caps over-bright green foliage before writing the 12 sprite names expected by
-Assets/StreamingAssets/Lua/dino_world.lua.
+"""Build the current vegetation or inspect its pixels.
 
 Run from the repo root:
 
     python tools/art/pixelate_gemini_plants.py
-
-Check or repair the already generated PNGs without rebuilding:
-
     python tools/art/pixelate_gemini_plants.py --check
     python tools/art/pixelate_gemini_plants.py --fix
+
+The old JPG conversion is available as --legacy-output DIRECTORY.
 """
 
 from __future__ import annotations
@@ -27,6 +19,8 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
+
+import make_vegetation
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "Assets" / "Art" / "gemini"
@@ -43,13 +37,13 @@ FALLBACK_GREEN = np.array([62, 110, 48], dtype=np.int16)
 # game's small scale. Cap only the green foliage; tree trunks, the yellow palm,
 # flowers and fruit keep their own colours.
 GREEN_PLANTS = {"tree", "bush", "cycad", "fern", "fern_frond", "horsetail"}
+FERN_SPRITES = ("fern", "fern_frond")
 GREEN_VALUE_CAP = 0.55
 GREEN_MIN_SATURATION = 0.58
 
 # sprite name -> (source stem, optional crop box, world height in units)
 # The source folder has seven plants. The extra sprite names are derived from
 # those plants so the existing world generator keeps working unchanged:
-#   fern / fern_frond       <- the upper cycad frond fan
 #   flower / clubmoss_small <- the clubmoss flower spike
 #   horsetail_cone          <- the top of the horsetail
 #   crown_small             <- the crown flower head
@@ -58,8 +52,6 @@ PLANTS = {
     "palm":           ("palm", None, 3.2),
     "bush":           ("shrub", None, 2.0),
     "cycad":          ("cycad", None, 2.4),
-    "fern":           ("cycad", (0, 0, 896, 720), 1.8),
-    "fern_frond":     ("cycad", (0, 170, 430, 700), 1.3),
     "flower":         ("clubmoss", (0, 0, 496, 760), 1.2),
     "clubmoss_small": ("clubmoss", (0, 0, 496, 760), 0.9),
     "horsetail":      ("horsetail", None, 1.8),
@@ -327,10 +319,10 @@ def _write_preview(images: list[tuple[str, Image.Image]]) -> None:
     sheet.save(PREVIEW)
 
 
-def _check_existing() -> int:
+def _check_existing(names=(*PLANTS, *FERN_SPRITES)) -> int:
     """Report any white points in the generated plant sprites."""
     failures = 0
-    for name in PLANTS:
+    for name in names:
         path = DST / f"{name}.png"
         if not path.exists():
             print(f"{name:16s} MISSING")
@@ -377,22 +369,22 @@ def _check_existing() -> int:
 def _fix_existing() -> int:
     """Recolor white points in the generated PNGs without rebuilding them."""
     failures = 0
-    for name in PLANTS:
+    for name in (*PLANTS, *FERN_SPRITES):
         path = DST / f"{name}.png"
         if not path.exists():
             print(f"{name:16s} MISSING")
             failures += 1
             continue
         image = Image.open(path).convert("RGBA")
-        image, green_count = _tame_green_highlights(image, name)
         fixed, count = _recolor_white_points(image)
-        if count or green_count:
+        if count:
             fixed.save(path)
-        print(f"{name:16s} white->green={count} green-highlights={green_count}")
+        print(f"{name:16s} white->green={count}")
     return 1 if failures else 0
 
 
 def main() -> int:
+    global DST, PREVIEW
     parser = argparse.ArgumentParser(description=__doc__)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -403,8 +395,10 @@ def main() -> int:
     mode.add_argument(
         "--fix",
         action="store_true",
-        help="only recolor white points in the generated PNGs; do not rebuild",
+        help="repair white speckles in current PNGs; do not rebuild",
     )
+    mode.add_argument("--legacy-output", type=Path, metavar="DIRECTORY",
+                      help="export the old JPG-derived plant sprites into a separate directory")
     args = parser.parse_args()
     if args.check:
         return _check_existing()
@@ -412,6 +406,14 @@ def main() -> int:
         result = _fix_existing()
         return result or _check_existing()
 
+    if args.legacy_output is None:
+        make_vegetation.main()
+        return _check_existing()
+
+    DST = args.legacy_output.resolve()
+    if DST == make_vegetation.OUTPUT:
+        parser.error("--legacy-output needs a separate directory")
+    PREVIEW = DST / "gemini_plants_sheet.png"
     DST.mkdir(parents=True, exist_ok=True)
     images: list[tuple[str, Image.Image]] = []
     for name, (stem, crop, units) in PLANTS.items():
@@ -422,8 +424,8 @@ def main() -> int:
               f"white->green={white_count}  green-highlights={green_count}")
 
     _write_preview(images)
-    print(f"preview -> {PREVIEW.relative_to(ROOT)}")
-    return _check_existing()
+    print(f"preview -> {PREVIEW}")
+    return _check_existing(PLANTS)
 
 
 if __name__ == "__main__":
