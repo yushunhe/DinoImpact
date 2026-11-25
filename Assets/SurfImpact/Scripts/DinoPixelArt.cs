@@ -257,53 +257,96 @@ namespace DinoImpact
 
         // -------------------------------------------------------------- obstacles
 
+        // Rows run from the crown to the ground. Digits select a palette swatch
+        // and dots leave the canvas clear. Keep the original canvas and pivot so
+        // both log orientations still turn about the same point.
+        static void PaintRows(Canvas canvas, Color32[] palette, params string[] rows)
+        {
+            for (int row = 0; row < rows.Length; row++)
+            {
+                string pixels = rows[row];
+                for (int x = 0; x < pixels.Length; x++)
+                {
+                    if (pixels[x] != '.')
+                        canvas.Set(x, canvas.H - 1 - row, palette[pixels[x] - '0']);
+                }
+            }
+        }
+
         static Sprite Rock(bool small = false)
         {
             var c = new Canvas(small ? 18 : 24, small ? 15 : 20);
-            Color32 outline = Hex("#2E3234");
-            Color32 dark = Hex("#5B6265");
-            Color32 mid = Hex("#7E878A");
-            Color32 light = Hex("#AAB3B4");
-            float cx = c.W * .5f, cy = c.H * .42f;
-            c.Ellipse(cx, cy, c.W * .46f, c.H * .40f, outline);
-            c.Ellipse(cx, cy, c.W * .40f, c.H * .34f, dark);
-            c.Ellipse(cx - c.W * .08f, cy + c.H * .08f, c.W * .30f, c.H * .24f, mid);
-            c.Ellipse(cx + c.W * .16f, cy + c.H * .19f, c.W * .14f, c.H * .09f, light);
-            c.Line((int)(cx - 5), (int)(cy - 3), (int)(cx + 2), (int)(cy + 4), 1, outline);
-            c.Line((int)(cx + 2), (int)(cy + 4), (int)(cx + 6), (int)(cy + 2), 1, outline);
+            // Forest shade, slate faces, warm sunlit edges, then two lichen tones.
+            var stone = new[] {
+                Hex("#414643"), Hex("#515956"), Hex("#626c69"), Hex("#79827a"),
+                Hex("#92998b"), Hex("#adaf98"), Hex("#687649"), Hex("#889558")
+            };
+            if (small)
+            {
+                // A low, chipped slab with a long light-catching lip.
+                PaintRows(c, stone,
+                    ".", ".", ".",
+                    "........44443",
+                    "......445544433",
+                    "....444443333332",
+                    "...44333333222221",
+                    "..333322224432221",
+                    ".2344444333222111",
+                    ".3222222222111110",
+                    "..21111111111000",
+                    "...11000000000");
+            }
+            else
+            {
+                // Broad upper shelf and a shaded shoulder split by a seam.
+                PaintRows(c, stone,
+                    ".", ".",
+                    ".........444433",
+                    ".......445554443",
+                    "......44444443333",
+                    ".....44443333333443",
+                    "....7443332222244333",
+                    "...774333222224332222",
+                    "...663332222233222221",
+                    "..63333222222322222211",
+                    "..33333222221132222111",
+                    ".233334444311122211111",
+                    ".234443333322211111110",
+                    ".223333322222211111110",
+                    "..2222222222111111100",
+                    "...22111111111110000",
+                    ".....1111100000000",
+                    "........00000");
+            }
             return c.ToSprite("rock", 18f, new Vector2(.5f, .3f));
         }
 
         static Sprite Log()
         {
-            // Palette follows the prehistoric flora set: bark browns like the
-            // trunk (#8B5A2B family), 1-px dark-green outline like every plant,
-            // moss dabs in the canopy greens - a fallen log that sits in this
-            // flora set ("地上的木头也参考这套素材").
             var c = new Canvas(32, 16);
-            Color32 outline = Hex("#173318");
-            Color32 dark = Hex("#5B3B1E");
-            Color32 mid = Hex("#8B5A2B");
-            Color32 light = Hex("#B07A45");
-            Color32 ring = Hex("#3E2812");
-            Color32 moss = Hex("#477F32");
-            Color32 mossHi = Hex("#6DA84A");
-            c.Ellipse(16f, 9f, 15f, 7f, outline);
-            c.Ellipse(16f, 9f, 14f, 6f, mid);
-            c.Rect(3, 4, 26, 9, mid);
-            c.Rect(3, 10, 26, 3, light);
-            c.Rect(3, 4, 26, 2, dark);
-            c.Ellipse(28f, 9f, 5f, 5.8f, outline);
-            c.Ellipse(28f, 9f, 4f, 4.8f, dark);
-            c.Ellipse(28f, 9f, 2.6f, 3.2f, mid);
-            c.Ellipse(28f, 9f, 1.2f, 1.6f, ring);
-            c.Line(7, 6, 20, 6, 1, dark);
-            c.Line(10, 12, 23, 12, 1, light);
-            // moss caps along the top edge, hard-edged like the plant set
-            c.Ellipse(8f, 13f, 3.4f, 2f, moss);
-            c.Ellipse(17f, 13.5f, 2.6f, 1.6f, moss);
-            c.Ellipse(16f, 14f, 1.4f, .9f, mossHi);
-            c.Ellipse(24f, 13f, 2f, 1.3f, moss);
+            // First five swatches are the live tree fern's bark ramp. The pale
+            // fibres appear only at the break; moss follows a single damp ridge.
+            var bark = new[] {
+                Hex("#4c3426"), Hex("#66452e"), Hex("#805336"), Hex("#975e3b"),
+                Hex("#ac744a"), Hex("#c69561"), Hex("#d5ae78"), Hex("#33582e"),
+                Hex("#5b8540"), Hex("#88a452")
+            };
+            PaintRows(c, bark,
+                "......32",
+                ".......32............32",
+                "..43....32..........321...43",
+                "...342..432.....98843223343453",
+                "....344223433398887333444445653",
+                ".3322343334988873333223322456552",
+                "...12343338773333222122332456352",
+                ".....223332333222433333222455452",
+                "...33223322221443332221122453531",
+                ".332212332344333222111222243531",
+                "....122212222222112222211123321",
+                "...2211.1221111122221111101221",
+                "..321....1112222111110000011",
+                ".21.......01111100000",
+                "...........00000");
             return c.ToSprite("log", 20f, new Vector2(.5f, .3f));
         }
 
