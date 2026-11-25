@@ -10,7 +10,7 @@ For gameplay polish or recruitment portfolio work, see the [gameplay and portfol
 
 ## Build, Test, and Development Commands
 
-Open the project in Unity 2022.3.62f3, load `DinoImpact.unity`, and press Play.
+Open the project in Unity 2022.3.62f3, load `DinoImpact.unity`, and press Play. For command-line verification, see the [debug workflow](docs/ai-debug-workflow.md) for Lua tests, Unity batch-mode screenshots, and Windows player checks.
 
 ```powershell
 lua tools/luatest/dino_tests.lua       # Lua 5.4 (Windows)
