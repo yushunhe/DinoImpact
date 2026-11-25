@@ -132,8 +132,9 @@ C.light = {
 }
 
 C.world = {
-    decorCell = 4,       -- 密度翻倍：格子缩小，内容量按格计
-    decorRadius = 8,     -- 半径同步放大，保持覆盖面不缩水
+    decorRadius = 2,       -- 植物群落与地貌共用 18 单位的格子
+    meadowCover = .82,     -- 有植株簇的草地格比例，其余整格留白
+    companionPatch = .72,  -- 地块另一侧再长一小簇
     cullX = 44,        -- sideways existence cull (relative to the player)
     cullBack = 20,     -- behind the player
     cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity
@@ -192,25 +193,23 @@ C.spawn = {
     brakeEventGap = { 7, 12 },  -- 刹车停住时，干扰龙仍会隔这段时间来找你
 }
 
--- 小树林大区域：跑道中的不可通行地标（参考 edgesurf 的礁石群）。
--- 由若干 grove sprite 拼成，每棵 grove 都是阻拦障碍；碰撞圈互相重叠，
--- 整片区域没有可钻的缝，玩家只能从左边或右边绕过去。
--- 形状：从前往后每排 1 / 2 / 3 棵，倒三角（尖头朝向玩家）。
+-- Grove layouts describe overlapping crowns from the near edge into the woods.
+-- Each entry is { sideways offset, forward offset, sprite, scale }.
 C.groveField = {
-    firstAt = 60,          -- 第一个区域离起点的距离（世界单位）
-    gapMin = 90,           -- 两个区域之间的最小距离
+    firstAt = 60,
+    gapMin = 90,
     gapMax = 150,
-    rowCounts = { 1, 2, 3 },
-    spacingX = 4.6,        -- 相邻 grove 中心间距（碰撞圈必须重叠）
-    spacingY = 4.5,
-    jitter = 1.2,          -- 横向随机抖动，打破整齐的列
-    columnStagger = .7,    -- 每棵上下随机错开，弱化整齐的排
-    scaleMin = .95,
-    scaleMax = 1.25,
-    radius = 3.9,          -- 单棵 grove 的碰撞半径（最终还要乘 scale）
-    hitOffsetY = 3.5,      -- 碰撞圈圆心上移，对齐树冠而不是树根/空地
-    offset = 5,            -- 区域中心相对预测路线的横向偏移
-    sprites = { "grove", "grove_2", "grove_3", "grove_4" },
+    offset = 5,
+    radius = 3.55,
+    hitOffset = { grove = 3.3, grove_2 = 3.1, grove_3 = 2.05, grove_4 = 2.65 },
+    layouts = {
+        { {0, 0, "grove_3", .80}, {-2.1, 1.9, "grove_4", .94},
+          {.9, 3.6, "grove", 1.13}, {3.9, 5.1, "grove_2", 1.04}, {5.5, 7.8, "grove_4", .86} },
+        { {0, 0, "grove_4", .85}, {2.7, 1.7, "grove_3", .88},
+          {-1.7, 3.6, "grove_2", 1.06}, {1.6, 5.6, "grove", 1.15}, {-.4, 8.6, "grove_4", .90} },
+        { {0, 0, "grove_3", .85}, {2.5, 2.1, "grove", 1.08},
+          {-2.3, 2.7, "grove_4", .91}, {-4.2, 5.4, "grove_2", 1.10} },
+    },
 }
 
 -- 换乘判定（1.2.7 调整版 + 1113 反馈）：睡觉恐龙不伤害玩家、可被射杀；
@@ -219,15 +218,25 @@ C.mount = {
     range = 5.5,        -- 1113 反馈：判断距离再放大，且有绳索实体特效提示
 }
 
+-- Linear sprite scale: 1.5 gives dinosaurs 2.25 times their previous area.
+C.dinoScale = 1.5
+
 -- player body / animation
 C.player = {
     radius = .55,
     animRate = .11,
 }
 
+C.rider = {
+    shootPoseTime = .16,
+    scale = .88,  -- relative to dinoScale
+    seat = .30,
+}
+
 C.sprites = {
     shadow = "shadow",
-    rider = "rider",
+    riderIdle = { [0] = "rider_idle_0", "rider_idle_1", "rider_idle_2", "rider" },
+    riderShoot = { [0] = "rider_shoot_0", "rider_shoot_1", "rider_shoot_2", "rider_shoot_3" },
     arrow = "arrow",
     zzz = "zzz",
     rope = "rope_prompt",

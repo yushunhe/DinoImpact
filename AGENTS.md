@@ -6,9 +6,11 @@ DinoImpact is a Unity 2022.3.62f3 game. Open `Assets/Scenes/DinoImpact.unity`; g
 
 Editor and build-menu scripts live in `Assets/Editor/` and `Assets/SurfImpact/Scripts/Editor/`. Pixel art is in `Assets/Art/` and `Assets/Resources/Dino/`; design and troubleshooting notes are in `docs/`. Headless tests are in `tools/luatest/`. `Assets/Resources/DinoLua/` is generated from StreamingAssets for WebGL builds—edit the StreamingAssets source, not the mirror.
 
+For gameplay polish or recruitment portfolio work, see the [gameplay and portfolio review](docs/gameplay-and-portfolio-review.md) for playtest observations and proposed changes.
+
 ## Build, Test, and Development Commands
 
-Open the project in Unity 2022.3.62f3, load `DinoImpact.unity`, and press Play.
+Open the project in Unity 2022.3.62f3, load `DinoImpact.unity`, and press Play. For command-line verification, see the [debug workflow](docs/ai-debug-workflow.md) for Lua tests, Unity batch-mode screenshots, and Windows player checks.
 
 ```powershell
 lua tools/luatest/dino_tests.lua       # Lua 5.4 (Windows)

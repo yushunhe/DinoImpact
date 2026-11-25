@@ -12,7 +12,7 @@ local GF = Config.groveField
 
 local T = {
     items = {},          -- obstacles / items / sleeping dinos
-    fields = {},         -- 小树林大区域的不可通行范围
+    fields = {},         -- 小树林的树冠占地范围
     nextObstacle = 0,
     nextEgg = 0,
     nextEnemy = 0,
@@ -65,7 +65,9 @@ end
 function T.addSleepDino(mountKey, x, y)
     local m = Data.mounts[mountKey]
     local id = Host.entity.new(m.sleep, x, y, 0)
-    local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1, -.4)
+    Host.entity.setScale(id, Config.dinoScale, Config.dinoScale, 1)
+    local zid = Host.entity.new(Config.sprites.zzz, x, y + 1.1 * Config.dinoScale, -.4)
+    Host.entity.setOrder(zid, math.floor(-y * 8 + .5) + 1)
     -- 换乘范围圈（反馈1）：圈内按 K 就能换，玩家一眼看到可换位置
     local rid = Host.entity.new(Config.sprites.ring, x, y, -.15)
     local rd = Config.mount.range * 2
@@ -90,69 +92,52 @@ local function removeItemAt(i)
     table.remove(T.items, i)
 end
 
--- 小树林大区域：整片区域不可通行。普通生成器在区域范围内不再放蛋/果实/
--- 障碍，玩家只能绕行；区域由多棵 grove 组成，每棵都是阻拦障碍。
+-- Reserve the crown footprints for the landmark. The concave edges and
+-- clearings between separate woods stay available to the track director.
+local function insideGrove(field, x, y)
+    for _, crown in ipairs(field.crowns) do
+        local clearance = crown.radius + .65
+        if U.dist2(x, y, crown.x, crown.hitY) <= clearance * clearance then return true end
+    end
+    return false
+end
+
 function T.isBlocked(x, y)
-    for i = 1, #T.fields do
-        local f = T.fields[i]
-        if math.abs(x - f.x) <= f.hw
-            and y >= f.y - 1 and y <= f.y + f.depth + 1 then
-            return true
-        end
+    for _, field in ipairs(T.fields) do
+        if insideGrove(field, x, y) then return true end
     end
     return false
 end
 
 function T.spawnGroveField(cx, y)
-    local c = GF
-    local rows = #c.rowCounts
-    local maxCols = 0
-    for r = 1, rows do
-        if c.rowCounts[r] > maxCols then maxCols = c.rowCounts[r] end
+    local layout = U.choice(GF.layouts)
+    local facing = U.chance(.5) and -1 or 1
+    local stretch = .92 + math.random() * .16
+    local field = { x = cx, y = y, crowns = {}, depth = 0 }
+    for _, node in ipairs(layout) do
+        local sprite, scale = node[3], node[4]
+        local px, py = cx + facing * node[1] * stretch, y + node[2]
+        local id = Host.entity.new(sprite, px, py, 0)
+        Host.entity.setScale(id, scale, scale, 1)
+        Host.entity.setFlip(id, facing < 0, false)
+        local crown = {
+            type = "obstacle", kind = sprite, class = "block", low = false,
+            x = px, y = py, hitY = py + GF.hitOffset[sprite] * scale,
+            radius = GF.radius * scale, id = id, dead = false, field = true,
+        }
+        field.crowns[#field.crowns + 1] = crown
+        field.depth = math.max(field.depth, crown.hitY + crown.radius + .65 - y)
     end
-    -- 横向范围要盖住最外侧 grove 的碰撞圈（中心偏移 + jitter + 半径），
-    -- 纵向范围要盖住整片树冠，避免蛋/果实生成在树冠里。
-    local halfW = (maxCols - 1) * c.spacingX * .5 + c.jitter
-        + c.radius * c.scaleMax + .5
-    local depth = (rows - 1) * c.spacingY + 7.2 * c.scaleMax
-        + c.columnStagger + c.jitter * .5
-
-    -- 清掉已经生成在区域里的可拾取物和普通障碍，避免蛋/换乘点被埋进
-    -- 不可达的树林；睡觉恐龙（换乘点）保留，它本身无害。
+    -- Existing sleeping mounts remain available when a field is placed.
     for i = #T.items, 1, -1 do
         local it = T.items[i]
-        if not it.field and it.type ~= "mount" and it.x
-            and math.abs(it.x - cx) <= halfW + 1
-            and it.y >= y - 1 and it.y <= y + depth + 1 then
+        if not it.field and it.type ~= "mount" and insideGrove(field, it.x, it.y) then
             removeItemAt(i)
         end
     end
-
-    T.fields[#T.fields + 1] = { x = cx, y = y, hw = halfW, depth = depth }
-
-    -- 后排先画、前排压在上面；每排 1/2/3 棵，整体是尖朝玩家的倒三角。
-    for row = rows, 1, -1 do
-        local count = c.rowCounts[row]
-        for col = 1, count do
-            local sc = c.scaleMin + math.random() * (c.scaleMax - c.scaleMin)
-            local x = cx + (col - (count + 1) * .5) * c.spacingX
-                + (math.random() * 2 - 1) * c.jitter
-            -- 每棵独立上下错开，前排不再是一条直线
-            local stagger = (math.random() * 2 - 1) * c.columnStagger
-            local yy = y + (row - 1) * c.spacingY + stagger
-                + (math.random() * 2 - 1) * c.jitter * .5
-            local sprite = U.choice(c.sprites)
-            local id = Host.entity.new(sprite, x, yy, 0)
-            Host.entity.setScale(id, sc, sc, 1)
-            T.items[#T.items + 1] = {
-                type = "obstacle", kind = sprite, class = "block", low = false,
-                x = x, y = yy, hitY = yy + c.hitOffsetY,
-                radius = c.radius * sc, id = id, dead = false,
-                field = true,
-            }
-        end
-    end
-    return T.fields[#T.fields]
+    for _, crown in ipairs(field.crowns) do T.items[#T.items + 1] = crown end
+    T.fields[#T.fields + 1] = field
+    return field
 end
 
 local function eggNear(x, y)
@@ -399,7 +384,8 @@ function T.update(dt, P)
                 < (P.radius + it.radius) ^ 2
             if overlap and isTreeBlock(it) then treeOverlap = true end
             if it.type == "mount" and it.zzz and Host.entity.exists(it.zzz) then
-                Host.entity.setPos(it.zzz, it.x, it.y + 1.1 + math.sin(now * 2 + it.y) * .08, -.4)
+                Host.entity.setPos(it.zzz, it.x, it.y + 1.1 * Config.dinoScale + math.sin(now * 2 + it.y) * .08, -.4)
+                Host.entity.setOrder(it.zzz, math.floor(-it.y * 8 + .5) + 1)
             end
             if it.type == "mount" and it.ring and Host.entity.exists(it.ring) then
                 local k = Config.mount.range * 2 * (1 + .035 * math.sin(now * 2.2 + it.y))

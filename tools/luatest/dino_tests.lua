@@ -144,6 +144,74 @@ check(P.arrows == 0, "2 秒 CD 之前不回填（1.5 s 仍为空）")
 steps(15, .05)
 check(P.arrows >= 1, "arrows recharge after the 2 s cooldown")
 
+io.write("rider poses follow the quiver\n")
+startFresh()
+local function riderSprite()
+    local rider = host._debug.entities()[P.riderId]
+    return rider.sprite or rider.kind
+end
+check(riderSprite() == "rider", "a fresh run shows the full quiver")
+for remaining = 2, 0, -1 do
+    step(.05, { shoot = true })
+    check(riderSprite() == "rider_shoot_" .. remaining,
+        "a successful shot shows the release pose with " .. remaining .. " arrows")
+end
+step(.1)
+step(.05, { shoot = true })
+check(riderSprite() == "rider_shoot_0", "an empty shot does not change the active release pose")
+step(.05, { shoot = true })
+check(riderSprite() == "rider_idle_0", "an empty shot does not restart the release pose")
+for restored = 1, 3 do
+    steps(40, .05)
+    local expected = restored == 3 and "rider" or "rider_idle_" .. restored
+    check(P.arrows == restored and riderSprite() == expected,
+        "the idle quiver shows " .. restored .. " arrows after automatic refill")
+end
+step(.05, { right = true })
+local riderEntity = host._debug.entities()[P.riderId]
+local mountEntity = host._debug.entities()[P.id]
+check(riderEntity.x > mountEntity.x and riderEntity.rot[3] == mountEntity.rot[3],
+    "the rider stays seated on the mount when turning")
+P:hurt(false)
+local blinkTogether, sawBlink = true, false
+for _ = 1, 6 do
+    step(.05)
+    blinkTogether = blinkTogether and riderEntity.visible == mountEntity.visible
+    sawBlink = sawBlink or not mountEntity.visible
+end
+check(blinkTogether and sawBlink, "the rider blinks with the stunned mount")
+
+startFresh()
+step(.05, { shoot = true })
+P.arrowT = .02
+step(.05)
+check(P.arrows == 3 and riderSprite() == "rider_shoot_3",
+    "a quiver refilled during the release pose shows all three arrows")
+
+io.write("character scale and saddle alignment\n")
+startFresh()
+local entities = host._debug.entities()
+local sleeping = T.addSleepDino("trike", P.x, P.y)
+check(entities[sleeping.id].scale[1] == Config.dinoScale, "sleeping mount uses the dinosaur scale")
+D.spawnEvent("para", P, P.y + 15)
+local wild = D.enemies[#D.enemies]
+check(entities[wild.id].scale[1] == Config.dinoScale, "wild dinosaurs use the same scale")
+step(.05, { mount = true })
+step(.05)
+local function checkMountedScale(airScale)
+    local mount = entities[P.id]
+    local rider = entities[P.riderId]
+    local factor = Config.dinoScale * airScale
+    check(math.abs(mount.scale[1] - 1.08 * factor) < .001
+        and math.abs(rider.scale[1] - Config.rider.scale * factor) < .001
+        and math.abs(rider.y - mount.y - Data.mounts.trike.riderSeat * factor) < .001,
+        "mount, rider and saddle position scale together at air scale " .. airScale)
+end
+checkMountedScale(1)
+P:fly(1)
+step(.05)
+checkMountedScale(1.4)
+
 io.write("arrow flight matches the heading (箭头朝向=玩家偏转方向)\n")
 startFresh()
 step(.05, { shoot = true })
@@ -238,12 +306,22 @@ for i = 1, #T.items do
         fieldItem = T.items[i]
     end
 end
-local wantGrove = 0
-for i = 1, #Config.groveField.rowCounts do
-    wantGrove = wantGrove + Config.groveField.rowCounts[i]
+check(blockers == #field.crowns and blockers >= 4 and blockers <= 5,
+    "the landmark spawns each crown of its irregular outline")
+local connected = { [1] = true }
+for _ = 2, blockers do
+    for a, crown in ipairs(field.crowns) do
+        for b, other in ipairs(field.crowns) do
+            local dx, dy = crown.x - other.x, crown.hitY - other.hitY
+            if connected[a] and dx * dx + dy * dy < (crown.radius + other.radius)^2 then
+                connected[b] = true
+            end
+        end
+    end
 end
-check(blockers == wantGrove,
-    "grove field spawns a full triangular grid of blocking groves")
+local reached = 0
+for _ in pairs(connected) do reached = reached + 1 end
+check(reached == blockers, "the crowns form one continuous wood")
 check(fieldItem and fieldItem.hitY and fieldItem.hitY > fieldItem.y + 2,
     "field collision is centred on the canopy, not the empty ground below")
 check(T.isBlocked(P.x, P.y + 9), "grove field footprint is marked impassable")
@@ -637,6 +715,48 @@ check(P.y > 100, "the plain runs forever (y=" .. math.floor(P.y) .. ")")
 check(sawEnemy, "the event director spawns nuisance dinos")
 check(sawMount, "sleeping mount dinos appear on the road")
 check(eggsTotal > 20, "a real run harvests eggs naturally (eggs=" .. eggsTotal .. ")")
+
+io.write("vegetation communities and revisits\n")
+do
+    W.reset({ x = 0, y = 0 })
+    local function patchSignature()
+        local patches, plants = {}, {}
+        for key, cell in pairs(W.cells) do
+            patches[key] = #cell.items
+            for _, item in ipairs(cell.items) do
+                local plant = host._debug.entities()[item.id]
+                plants[#plants + 1] = string.format("%s/%s/%.4f/%.4f/%.4f", key, plant.kind,
+                    item.x, item.y, plant.scale[1])
+            end
+        end
+        table.sort(plants)
+        return table.concat(plants, "|"), patches
+    end
+    local habitats = {}
+    local wetlandPlants = { horsetail = true, horsetail_cone = true, fern_frond = true }
+    for _, cell in pairs(W.cells) do
+        local terrain = W.debugTerrainPlan(cell.cx, cell.cy)
+        if terrain and terrain.kind == "swamp" then
+            for _, item in ipairs(cell.items) do
+                habitats[#habitats + 1] = host._debug.entities()[item.id].kind
+            end
+        end
+    end
+    local wetland = #habitats > 0
+    for _, kind in ipairs(habitats) do wetland = wetland and wetlandPlants[kind] end
+    check(wetland, "swamp banks grow horsetail communities")
+    local original, patches = patchSignature()
+    local empty, clustered = 0, true
+    for _, count in pairs(patches) do
+        if count == 0 then empty = empty + 1
+        elseif count < 4 then clustered = false end
+    end
+    check(empty > 0 and clustered and original ~= "", "open meadow cells alternate with groups of plants")
+    W.update(.05, { x = -220, y = 160 })
+    check(W.cells["0:0"] == nil, "departed vegetation cells unload")
+    W.update(.05, { x = 0, y = 0 })
+    check(patchSignature() == original, "revisiting regenerates the same plants, positions and sizes")
+end
 
 io.write("terrain biomes: mostly grass, some fern, rare swamp\n")
 local counts = { grass = 0, fern = 0, swamp = 0 }

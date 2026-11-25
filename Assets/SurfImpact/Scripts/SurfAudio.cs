@@ -5,8 +5,7 @@ using UnityEngine;
 namespace SurfImpact
 {
     /// <summary>
-    /// All audio is synthesised at startup (no audio assets): SFX, a mellow
-    /// procedural music loop and an ocean ambience bed.
+    /// Plays the scene's score alongside synthesized effects and ambience.
     /// </summary>
     public class SurfAudio : MonoBehaviour
     {
@@ -14,17 +13,18 @@ namespace SurfImpact
         readonly Dictionary<string, AudioClip> _clips = new Dictionary<string, AudioClip>();
         AudioSource _sfx, _music, _ambient;
         float _master = .8f;
+        float _ambientGain = .38f;
         bool _muted;
 
-        public static SurfAudio Build()
+        public static SurfAudio Build(AudioClip theme = null)
         {
             var go = new GameObject("Audio");
             var audio = go.AddComponent<SurfAudio>();
-            audio.Init();
+            audio.Init(theme);
             return audio;
         }
 
-        void Init()
+        void Init(AudioClip theme)
         {
             _sfx = gameObject.AddComponent<AudioSource>();
             _sfx.playOnAwake = false;
@@ -39,10 +39,12 @@ namespace SurfImpact
             _ambient.spatialBlend = 0f;
 
             BuildClips();
-            _music.clip = _clips["music"];
+            _music.clip = theme != null ? theme : MakeLoop("music", 16f, Music);
             _music.volume = .32f;
             _ambient.clip = _clips["jungle"];
-            _ambient.volume = .30f;
+            // Keep the jungle whistles behind the softer orchestral instruments.
+            if (theme != null) _ambientGain = .075f;
+            _ambient.volume = theme != null ? _ambientGain * _master : .30f;
             _music.Play();
             _ambient.Play();
         }
@@ -74,7 +76,7 @@ namespace SurfImpact
         {
             _master = Mathf.Clamp01(v);
             if (_music != null) _music.volume = .32f * _master;
-            if (_ambient != null) _ambient.volume = .38f * _master;
+            if (_ambient != null) _ambient.volume = _ambientGain * _master;
         }
 
         public void SetMuted(bool muted)
@@ -106,7 +108,6 @@ namespace SurfImpact
 
             _clips["ocean"] = MakeLoop("ocean", 8f, OceanBed);
             _clips["jungle"] = MakeLoop("jungle", 12f, Jungle);
-            _clips["music"] = MakeLoop("music", 16f, Music);
         }
 
         delegate float Sampler(float t, int index, float duration);

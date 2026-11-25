@@ -10,7 +10,7 @@
 | 玩法代码 | `Assets/StreamingAssets/Lua/` | ✅ | 唯一源码（桌面版直接读取） |
 | 宿主 C# | `Assets/SurfImpact/Scripts/`、`Assets/Editor/` | ✅ | MoonSharp 宿主、构建菜单 |
 | 运行时精灵 | `Assets/Resources/Dino/` | ✅ | 虽然是生成物，但运行时直接加载；缺文件会退回占位图 |
-| 当前素材源图 | `Assets/Art/gemini/*.jpg` | ✅ | 当前生成管线的输入（约 3.6 MB） |
+| 当前植被源图 | `tools/art/*-atlas.png`、`tools/art/tree-fern.png` | ✅ | 植物和蕨地共用的透明源图 |
 | 生成脚本 | `tools/art/pixelate_gemini_plants.py` 等 | ✅ | 必须和源图同版本提交，否则不可复现 |
 | 无头测试 | `tools/luatest/` | ✅ | |
 | 文档 | `docs/`、各 README | ✅ | |
@@ -40,30 +40,17 @@ git check-ignore -v Library_old Assets/Resources/DinoLua Assets/Art/PlantsCutout
 
 ## 2. 素材多版本
 
-### 现行版本（2026-11-14 起，Gemini）
+### 现行植被
 
-```
-Assets/Art/gemini/*.jpg                 源图（树、棕榈、灌木、苏铁、木贼、石松、树冠）
-        │  python tools/art/pixelate_gemini_plants.py
-        ▼
-Assets/Resources/Dino/*.png             12 个运行时 sprite（tree/palm/bush/cycad/fern/...）
-```
+`tools/art/canopy-atlas.png`、`tools/art/understory-atlas.png` 和
+`tools/art/fern-atlas.png` 是现行源图，树蕨单独使用 `tools/art/tree-fern.png`。运行 `python tools/art/make_vegetation.py`
+即可导出独立植物、蕨地、小树林和素材预览。用
+`python tools/art/pixelate_gemini_plants.py --check` 检查 12 张独立植物有无白点。
+提交时把改动涉及的源图、脚本、运行时贴图和 Unity `.meta` 一起提交。
 
-一个**可复现的素材版本 = 三件套**，提交时必须一起走：
-
-1. 源图（`Assets/Art/gemini/`）
-2. 生成脚本（`tools/art/pixelate_gemini_plants.py`，必要时含 `plant_pixel_art.py`）
-3. 生成的 sprite（`Assets/Resources/Dino/*.png`）与说明（`Assets/Resources/Dino/README.txt`）
-
-只提交 sprite，别人改不了细节；只提交源图，别人看不到游戏里的效果。
-
-### 新增 / 切换版本
-
-1. 新源图放进 `Assets/Art/gemini/`（同名覆盖），或另建临时目录并改脚本里的 `SRC` 常量。
-2. 重新生成：`python tools/art/pixelate_gemini_plants.py`
-3. 白点自检（只读）：`python tools/art/pixelate_gemini_plants.py --check`，12 个 sprite 应全部 `white_points=0`。
-4. 看预览：`tools/art/preview/gemini_plants_sheet.png`。
-5. 提交「源图 + 脚本 + sprite + README」；提交信息里写清素材版本名和日期。
+原先的 Gemini JPG 源图保存在 `Assets/Art/gemini/`，可用
+`python tools/art/pixelate_gemini_plants.py --legacy-output Builds/LegacyPlants`
+单独导出旧版 PNG。
 
 ### 归档旧版本（不进 git）
 

@@ -26,6 +26,7 @@ local function add(list, kind, x, y, radius, data)
     d.radius = radius
     d.t = d.t or 0
     d.id = Host.entity.new(d.sprite or kind, x, y, 0)
+    if list == Dino.enemies then Host.entity.setScale(d.id, Config.dinoScale, Config.dinoScale, 1) end
     if d.rotZ then Host.entity.setRot(d.id, 0, 0, d.rotZ) end
     list[#list + 1] = d
     return d

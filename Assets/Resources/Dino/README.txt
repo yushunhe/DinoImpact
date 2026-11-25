@@ -10,6 +10,9 @@ placeholder.
   dino_run1.png      run frame 1 (pass)
   dino_run2.png      run frame 2 (right foot forward)
   dino_run3.png      run frame 3 (pass)
+  rider.png         rider at rest with a full quiver
+  rider_idle_*.png  rider at rest with 0–2 arrows
+  rider_shoot_*.png rider releasing the bow with 0–3 arrows in the quiver
   shadow.png         soft ground shadow under the player
   egg.png            collectible egg
   rock.png           large obstacle
@@ -22,40 +25,49 @@ placeholder.
   fern.png           fern decoration
   flower.png         small flower decoration
   pebble.png         small ground detail
-  ground_grass.png   tiling grass texture (base ground everywhere)
-  ground_fern.png    tiling fern-ground texture (terrain patches)
-  ground_swamp.png   tiling swamp texture (terrain patches)
+  ground_grass.png   seamless moss, short meadow grass, windswept grass and dry grass
+  terrain_fern_0.png ... terrain_fern_3.png    four fern beds on transparent ground
+  terrain_swamp_0.png ... terrain_swamp_3.png  four marsh pools with painted shorelines
+  ground_fern.png    fallback tile for missing fern bed variants
+  ground_swamp.png   fallback tile for missing marsh pool variants
   ground_path.png    tiling dirt-path texture
+
+Regenerate the grassland with `python3 tools/art/make_grassland.py` (NumPy and
+Pillow). The 1024 px texture repeats every 64 world units. Import it with
+16 pixels per unit, Point filtering and Repeat wrapping on both axes.
+
+Regenerate the aligned 40×48 px rider sprites with `python3 tools/art/make_rider.py`
+(Pillow). It cuts both poses from `tools/art/rider-poses.png`, the pixel-art
+adaptation of the artist's rider, and adds the visible arrows for each count.
+Import at 32 pixels per unit with Point filtering and a saddle pivot at (0.5, 0.34).
 
 Current vegetation set
 ----------------------
-The 12 plant sprites (tree, palm, bush, cycad, fern, fern_frond, flower,
-clubmoss_small, horsetail, horsetail_cone, crown, crown_small) are generated
-from Assets/Art/gemini/*.jpg by (white points are recoloured and over-bright
-green foliage is capped so it does not read as white dots in game):
-
-  python tools/art/pixelate_gemini_plants.py
+Rebuild the current plant sprites, fern beds, and grove compositions with
+`python3 tools/art/make_vegetation.py` (Pillow). The transparent source atlases
+are under `tools/art/`, named canopy-atlas.png, understory-atlas.png, and
+fern-atlas.png. The tree fern uses its own tree-fern.png in the same folder.
+The export uses one foliage palette, with separate accent
+colors for bark, cones and clubmoss. Upright sprites retain their existing
+world heights and bottom-center pivots.
 
 Preview: tools/art/preview/gemini_plants_sheet.png
 
-Check or repair white points without rebuilding every sprite:
-
-  python tools/art/pixelate_gemini_plants.py --check
-  python tools/art/pixelate_gemini_plants.py --fix
+Check for white speckles with `python3 tools/art/pixelate_gemini_plants.py --check`.
 
 The 小树林 grove sprites (grove.png plus grove_2.png ~ grove_4.png) are
-composed from those 12 sprites in the reference layout: a tall central tree, a
-second smaller tree, the yellow palm, cycad rosettes and low ground plants,
-with pixel grass clumps along the bottom. The variants are deterministic, so
-world placement can pick one at random for variety.
+composed from the same plants. The four silhouettes are a tall canopy with
+an understory, a pair of overlapping trees, a low fan-palm edge and a
+fern-covered young stand. Rebuild the sprites and their contact sheet with:
 
   python tools/art/make_grove.py
 
-Preview: tools/art/preview/grove_preview.png
+Sprite sheet: tools/art/preview/grove_preview.png
+In-game landmark: tools/art/preview/grove_field_preview.png
 
-The impassable landmark field (C.groveField in dino_config.lua) arranges a
-3x2 grid of these groves into one large blocked area. Preview of the assembled
-field: tools/art/preview/grove_field_preview.png
+C.groveField.layouts arranges the crowns into connected, asymmetric woods.
+On the surrounding plain, dino_world.lua groups plants by habitat along the
+edges of fern beds and swamp patches and leaves gaps between meadow clusters.
 
 The dino_* files in this folder are generated white-feathered Ornithomimus
 frames with a hide-clad rider and quiver (46x56, Pixels Per Unit 22, pivot at

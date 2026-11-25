@@ -28,9 +28,11 @@ namespace DinoImpact
         /// </summary>
         static Sprite Repivot(Sprite raw, string name)
         {
+            // Rider frames already have a shared saddle pivot in the importer.
+            if (name == "rider" || name.StartsWith("rider_")) return raw;
             Vector2 pivot = new Vector2(.5f, .5f);
             if (name.StartsWith("dino_") || name.StartsWith("mount_") ||
-                name.StartsWith("enemy_") || name == "rider")
+                name.StartsWith("enemy_"))
                 pivot = new Vector2(.5f, .14f);
             else if (name == "rock" || name == "rock_small" || name == "log" ||
                      name == "pebble" ||
@@ -119,6 +121,7 @@ namespace DinoImpact
             // Placeholder dinosaurs: same body, per-species palette + accessory.
             if (name.StartsWith("enemy_") || name.StartsWith("mount_"))
                 return GenDino(name);
+            if (name.StartsWith("rider_")) return Get("rider");
             return Missing();
         }
 
@@ -254,53 +257,96 @@ namespace DinoImpact
 
         // -------------------------------------------------------------- obstacles
 
+        // Rows run from the crown to the ground. Digits select a palette swatch
+        // and dots leave the canvas clear. Keep the original canvas and pivot so
+        // both log orientations still turn about the same point.
+        static void PaintRows(Canvas canvas, Color32[] palette, params string[] rows)
+        {
+            for (int row = 0; row < rows.Length; row++)
+            {
+                string pixels = rows[row];
+                for (int x = 0; x < pixels.Length; x++)
+                {
+                    if (pixels[x] != '.')
+                        canvas.Set(x, canvas.H - 1 - row, palette[pixels[x] - '0']);
+                }
+            }
+        }
+
         static Sprite Rock(bool small = false)
         {
             var c = new Canvas(small ? 18 : 24, small ? 15 : 20);
-            Color32 outline = Hex("#2E3234");
-            Color32 dark = Hex("#5B6265");
-            Color32 mid = Hex("#7E878A");
-            Color32 light = Hex("#AAB3B4");
-            float cx = c.W * .5f, cy = c.H * .42f;
-            c.Ellipse(cx, cy, c.W * .46f, c.H * .40f, outline);
-            c.Ellipse(cx, cy, c.W * .40f, c.H * .34f, dark);
-            c.Ellipse(cx - c.W * .08f, cy + c.H * .08f, c.W * .30f, c.H * .24f, mid);
-            c.Ellipse(cx + c.W * .16f, cy + c.H * .19f, c.W * .14f, c.H * .09f, light);
-            c.Line((int)(cx - 5), (int)(cy - 3), (int)(cx + 2), (int)(cy + 4), 1, outline);
-            c.Line((int)(cx + 2), (int)(cy + 4), (int)(cx + 6), (int)(cy + 2), 1, outline);
+            // Forest shade, slate faces, warm sunlit edges, then two lichen tones.
+            var stone = new[] {
+                Hex("#414643"), Hex("#515956"), Hex("#626c69"), Hex("#79827a"),
+                Hex("#92998b"), Hex("#adaf98"), Hex("#687649"), Hex("#889558")
+            };
+            if (small)
+            {
+                // A low, chipped slab with a long light-catching lip.
+                PaintRows(c, stone,
+                    ".", ".", ".",
+                    "........44443",
+                    "......445544433",
+                    "....444443333332",
+                    "...44333333222221",
+                    "..333322224432221",
+                    ".2344444333222111",
+                    ".3222222222111110",
+                    "..21111111111000",
+                    "...11000000000");
+            }
+            else
+            {
+                // Broad upper shelf and a shaded shoulder split by a seam.
+                PaintRows(c, stone,
+                    ".", ".",
+                    ".........444433",
+                    ".......445554443",
+                    "......44444443333",
+                    ".....44443333333443",
+                    "....7443332222244333",
+                    "...774333222224332222",
+                    "...663332222233222221",
+                    "..63333222222322222211",
+                    "..33333222221132222111",
+                    ".233334444311122211111",
+                    ".234443333322211111110",
+                    ".223333322222211111110",
+                    "..2222222222111111100",
+                    "...22111111111110000",
+                    ".....1111100000000",
+                    "........00000");
+            }
             return c.ToSprite("rock", 18f, new Vector2(.5f, .3f));
         }
 
         static Sprite Log()
         {
-            // Palette follows the prehistoric flora set: bark browns like the
-            // trunk (#8B5A2B family), 1-px dark-green outline like every plant,
-            // moss dabs in the canopy greens - a fallen log that sits in this
-            // flora set ("地上的木头也参考这套素材").
             var c = new Canvas(32, 16);
-            Color32 outline = Hex("#173318");
-            Color32 dark = Hex("#5B3B1E");
-            Color32 mid = Hex("#8B5A2B");
-            Color32 light = Hex("#B07A45");
-            Color32 ring = Hex("#3E2812");
-            Color32 moss = Hex("#477F32");
-            Color32 mossHi = Hex("#6DA84A");
-            c.Ellipse(16f, 9f, 15f, 7f, outline);
-            c.Ellipse(16f, 9f, 14f, 6f, mid);
-            c.Rect(3, 4, 26, 9, mid);
-            c.Rect(3, 10, 26, 3, light);
-            c.Rect(3, 4, 26, 2, dark);
-            c.Ellipse(28f, 9f, 5f, 5.8f, outline);
-            c.Ellipse(28f, 9f, 4f, 4.8f, dark);
-            c.Ellipse(28f, 9f, 2.6f, 3.2f, mid);
-            c.Ellipse(28f, 9f, 1.2f, 1.6f, ring);
-            c.Line(7, 6, 20, 6, 1, dark);
-            c.Line(10, 12, 23, 12, 1, light);
-            // moss caps along the top edge, hard-edged like the plant set
-            c.Ellipse(8f, 13f, 3.4f, 2f, moss);
-            c.Ellipse(17f, 13.5f, 2.6f, 1.6f, moss);
-            c.Ellipse(16f, 14f, 1.4f, .9f, mossHi);
-            c.Ellipse(24f, 13f, 2f, 1.3f, moss);
+            // First five swatches are the live tree fern's bark ramp. The pale
+            // fibres appear only at the break; moss follows a single damp ridge.
+            var bark = new[] {
+                Hex("#4c3426"), Hex("#66452e"), Hex("#805336"), Hex("#975e3b"),
+                Hex("#ac744a"), Hex("#c69561"), Hex("#d5ae78"), Hex("#33582e"),
+                Hex("#5b8540"), Hex("#88a452")
+            };
+            PaintRows(c, bark,
+                "......32",
+                ".......32............32",
+                "..43....32..........321...43",
+                "...342..432.....98843223343453",
+                "....344223433398887333444445653",
+                ".3322343334988873333223322456552",
+                "...12343338773333222122332456352",
+                ".....223332333222433333222455452",
+                "...33223322221443332221122453531",
+                ".332212332344333222111222243531",
+                "....122212222222112222211123321",
+                "...2211.1221111122221111101221",
+                "..321....1112222111110000011",
+                ".21.......01111100000",
+                "...........00000");
             return c.ToSprite("log", 20f, new Vector2(.5f, .3f));
         }
 
@@ -939,20 +985,6 @@ namespace DinoImpact
                 }
             }
 
-            // taller blade row along the bottom edge (reference B1)
-            for (int i = 0; i < 16; i++)
-            {
-                int x = rng.Range(0, GroundTileSize - 1);
-                int h = rng.Range(3, 8);
-                int lean = rng.Range(-1, 1);
-                Color32 col = rng.Float() < .5f ? deep : mid;
-                for (int k = 0; k < h; k++)
-                {
-                    int xx = x + Mathf.RoundToInt(lean * (k / (float)h));
-                    TSet(c, xx, k, col);
-                    if (k > 2 && rng.Float() < .25f) TSet(c, xx, k + 1, light);
-                }
-            }
             return GroundSprite(c, "ground_fern");
         }
 
@@ -1066,9 +1098,8 @@ namespace DinoImpact
         static readonly Dictionary<string, Texture2D> PatchCache = new Dictionary<string, Texture2D>();
 
         /// <summary>
-        /// Builds a one-off patch texture: the tiling biome texture repeated over
-        /// tilesX x tilesY tiles, with a pixel-dithered organic border so the
-        /// patch fades into the grass instead of reading as a rectangle.
+        /// Uses a whole painted patch for each biome variant. The procedural
+        /// tiles supply the fallback for projects with missing terrain art.
         /// </summary>
         public static Texture2D GroundPatch(string kind, int tilesX, int tilesY, int variant)
         {
@@ -1076,6 +1107,14 @@ namespace DinoImpact
             tilesX = Mathf.Clamp(tilesX, 1, 12);
             tilesY = Mathf.Clamp(tilesY, 1, 12);
             variant &= 3;
+            string artKey = "terrain_" + kind + "_" + variant;
+            if (!PatchCache.TryGetValue(artKey, out Texture2D painted))
+            {
+                painted = Resources.Load<Texture2D>("Dino/" + artKey);
+                PatchCache[artKey] = painted;
+            }
+            if (painted != null) return painted;
+
             string key = kind + ":" + tilesX + "x" + tilesY + ":" + variant;
             if (PatchCache.TryGetValue(key, out Texture2D cached)) return cached;
 
@@ -1086,24 +1125,37 @@ namespace DinoImpact
             int w = tw * tilesX;
             int h = th * tilesY;
             var px = new Color32[w * h];
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
-                    px[y * w + x] = src[(y % th) * tw + (x % tw)];
-
-            // Ragged edge: keep probability rises with distance from the border,
-            // so the fringe is a scattered pixel dissolve rather than a fade.
             uint seed = (uint)(variant * 0x9E3779B9 + tilesX * 7919 + tilesY * 104729
                 + (kind == "swamp" ? 17 : 0));
             var rng = new Rng(seed);
-            int edge = Mathf.Max(4, Mathf.Min(w, h) / 7);
-            for (int y = 0; y < h; y++)
-                for (int x = 0; x < w; x++)
+            float phase = rng.Range(0f, 100f);
+            float opacity = kind == "fern" ? .52f : .85f;
+            for (int row = 0; row < tilesY; row++)
+            {
+                for (int col = 0; col < tilesX; col++)
                 {
-                    int d = Mathf.Min(Mathf.Min(x, w - 1 - x), Mathf.Min(y, h - 1 - y));
-                    if (d >= edge) continue;
-                    float t = d / (float)edge;
-                    if (rng.Float() > t * t) px[y * w + x].a = 0;
+                    // Different slices of the biome tile keep rosettes and pools
+                    // from marching in rows across a large ground patch.
+                    int offsetX = rng.Range(0, tw - 1);
+                    int offsetY = rng.Range(0, th - 1);
+                    for (int y = 0; y < th; y++)
+                    {
+                        int py = row * th + y;
+                        float v = 2f * (py + .5f) / h - 1f;
+                        for (int x = 0; x < tw; x++)
+                        {
+                            int ix = col * tw + x;
+                            float u = 2f * (ix + .5f) / w - 1f;
+                            float noise = Mathf.PerlinNoise(phase + 2.4f * u, phase + 2.4f * v);
+                            float cover = Mathf.Clamp01((.65f + .34f * noise - u * u - v * v) * 3.5f);
+                            if (cover == 0f) continue;
+                            Color32 color = src[((y + offsetY) % th) * tw + (x + offsetX) % tw];
+                            color.a = (byte)(color.a * cover * opacity * (.6f + .4f * noise));
+                            px[py * w + ix] = color;
+                        }
+                    }
                 }
+            }
 
             var tex = new Texture2D(w, h, TextureFormat.RGBA32, false)
             {

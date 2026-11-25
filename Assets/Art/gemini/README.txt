@@ -1,9 +1,8 @@
-GEMINI 植被素材
+旧版 GEMINI 植被源图
 
 来源：Assets/Art/gemini/*.jpg（带棋盘格或黑底的像素风渲染图）
-处理：python tools/art/pixelate_gemini_plants.py
-输出：Assets/Resources/Dino/*.png
-预览：tools/art/preview/gemini_plants_sheet.png
+单独导出旧版可用 `python tools/art/pixelate_gemini_plants.py --legacy-output Builds/LegacyPlants`。
+现行植被的入口是 `python tools/art/make_vegetation.py`。
 
 处理流程：
 - 去掉棋盘格/黑底，裁到植物外轮廓
@@ -22,7 +21,6 @@ GEMINI 植被素材
   palm.jpg      -> palm
   shrub.jpg     -> bush
   cycad.jpg     -> cycad
-  cycad 上部叶冠 -> fern / fern_frond
   clubmoss.jpg  -> flower / clubmoss_small
   horsetail.jpg -> horsetail / horsetail_cone
   crown.jpg     -> crown / crown_small

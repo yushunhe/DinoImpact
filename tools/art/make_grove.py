@@ -1,14 +1,10 @@
 #!/usr/bin/env python3
-"""Compose the "小树林" (grove) sprites from the Gemini plant set.
+"""Compose the "小树林" (grove) sprites from the current plant atlases.
 
-The seven Gemini reference renders are pixelated into the twelve sprites under
-Assets/Resources/Dino. This tool arranges those sprites into dense groves in
-the spirit of the reference composition: a tall central tree, smaller trees and
-palms behind, cycad/fern rosettes in the middle, low plants in front and grass
-clumps along the ground.
+Tall tree ferns anchor the canopy, with smaller trees, palms and cycads
+below them, low plants in front and grass clumps along the ground.
 
-It writes several deterministic variants so world placement can pick one at
-random:
+It writes four silhouettes for the canopy and edge positions in each woodland:
 
     Assets/Resources/Dino/grove.png      variant 1 (the default "grove")
     Assets/Resources/Dino/grove_2.png    variant 2
@@ -33,10 +29,8 @@ from PIL import Image, ImageDraw, ImageFont
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "Assets" / "Resources" / "Dino"
 PREVIEW = ROOT / "tools" / "art" / "preview" / "grove_preview.png"
-FIELD_PREVIEW = ROOT / "tools" / "art" / "preview" / "grove_field_preview.png"
 
 W, H = 154, 158
-GROUND = 149
 
 # variant index -> file name. Variant 1 keeps the plain "grove" name so code
 # that only knows the original sprite keeps working.
@@ -47,8 +41,19 @@ GRASS_DARK = (47, 100, 40, 255)
 GRASS_MID = (74, 138, 56, 255)
 GRASS_LIGHT = (111, 176, 82, 255)
 
-GROUND_PLANTS = ["horsetail", "horsetail_cone", "crown", "crown_small",
-                 "flower", "clubmoss_small", "fern_frond", "fern"]
+# Back to front. Base heights vary so crowns, roots and the fern skirt
+# describe the same knoll. Smaller edge groves have their own silhouettes.
+# (sprite, bottom-centre x, base y, scale)
+GROVES = [
+    [("palm", 103, 120, .79), ("tree", 61, 144, .96),
+     ("cycad", 92, 142, .88), ("fern", 44, 150, .84), ("fern", 75, 151, .61)],
+    [("tree", 47, 119, .73), ("tree", 99, 145, .90),
+     ("fern", 38, 137, .74), ("cycad", 64, 145, .88), ("fern", 99, 151, .62)],
+    [("palm", 94, 120, 1.12), ("palm", 58, 134, .80),
+     ("cycad", 84, 145, 1.10), ("fern", 45, 143, .86), ("fern", 103, 149, .75)],
+    [("tree", 93, 130, .78), ("cycad", 68, 140, 1.04),
+     ("cycad", 35, 139, .71), ("fern", 95, 148, .88), ("fern", 54, 151, .64)],
+]
 
 
 def load(name: str, scale: float = 1.0, flip: bool = False) -> Image.Image:
@@ -73,10 +78,6 @@ def put(canvas: Image.Image, sprite: Image.Image, cx: float, base_y: float) -> N
     canvas.alpha_composite(layer)
 
 
-def clamp_x(sprite: Image.Image, x: float) -> float:
-    return max(sprite.width / 2, min(W - sprite.width / 2, x))
-
-
 def draw_grass(layer: Image.Image, rng: random.Random,
                cx: float, base_y: float, width: float, height: float) -> None:
     """A 5-blade pixel grass clump in the game's grass palette."""
@@ -96,63 +97,32 @@ def draw_grass(layer: Image.Image, rng: random.Random,
               fill=GRASS_DARK)
 
 
-def compose(seed: int) -> Image.Image:
-    rng = random.Random(seed)
-    canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-
-    # ---------------------------------------------------------- back: trees
-    main_x = 64 + rng.uniform(-5, 5)
-    put(canvas, load("tree", 1.0, rng.random() < .5), main_x, GROUND)
-
-    second_side = 0
-    if rng.random() < .9:
-        second_side = rng.choice((-1, 1))
-        sc = rng.uniform(.56, .72)
-        tree = load("tree", sc, rng.random() < .5)
-        x = main_x + second_side * rng.uniform(50, 60)
-        put(canvas, tree, clamp_x(tree, x), GROUND)
-
-    # Fan palm on the other side from the second tree (or a random side).
-    palm_side = -second_side if second_side else rng.choice((-1, 1))
-    palm = load("palm", 1.0, palm_side < 0)
-    put(canvas, palm, clamp_x(palm, main_x + palm_side * rng.uniform(40, 48)),
-        GROUND + rng.uniform(0, 1))
-
-    # ----------------------------------------------------------- mid layer
-    for _ in range(rng.randint(2, 3)):
-        side = rng.choice((-1, 1))
-        cycad = load("cycad", rng.uniform(.85, 1.05), rng.random() < .5)
-        x = main_x + side * rng.uniform(14, 34)
-        put(canvas, cycad, clamp_x(cycad, x),
-            GROUND + rng.uniform(1, 3))
-
-    bush = load("bush", rng.uniform(.9, 1.1), rng.random() < .5)
-    put(canvas, bush, clamp_x(bush, main_x + rng.uniform(-42, 42)),
-        GROUND + rng.uniform(1, 4))
-
-    fern = load("fern", rng.uniform(.9, 1.1), rng.random() < .5)
-    put(canvas, fern, clamp_x(fern, main_x + rng.uniform(-26, 26)),
-        GROUND + rng.uniform(2, 4))
-
-    # --------------------------------------------------------- front layer
-    picks = rng.sample(GROUND_PLANTS, rng.randint(5, 7))
-    for i, name in enumerate(picks):
-        sprite = load(name, rng.uniform(.9, 1.15), rng.random() < .5)
-        x = 12 + (i + .5) * (W - 24) / len(picks) + rng.uniform(-5, 5)
-        put(canvas, sprite, clamp_x(sprite, x),
-            H - rng.uniform(1, 4))
-
-    # ------------------------------------------------------- grass clumps
-    grass = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    for _ in range(rng.randint(9, 12)):
-        draw_grass(grass, rng,
-                   rng.uniform(6, W - 6), rng.uniform(GROUND + 3, H - 6),
-                   rng.uniform(12, 22), rng.uniform(8, 14))
-    for _ in range(rng.randint(14, 18)):
-        draw_grass(grass, rng,
-                   rng.uniform(2, W - 2), rng.uniform(H - 5, H - 1),
-                   rng.uniform(14, 28), rng.uniform(10, 16))
-    canvas.alpha_composite(grass)
+def compose(index: int) -> Image.Image:
+    rng = random.Random(101 + index * 7919)
+    canvas = Image.new("RGBA", (W, H))
+    layers = GROVES[index]
+    # Shared leaf-litter and shade under overlapping roots, broadest in the
+    # interior. Small shelves at different depths break up the forest floor.
+    shade = ImageDraw.Draw(canvas)
+    for _, x, y, size in layers:
+        width = round(29 * size)
+        shade.polygon([(x - width, y - 2), (x - width + 7, y - 7), (x + 4, y - 10),
+                       (x + width - 4, y - 6), (x + width, y - 1), (x + 8, y + 3),
+                       (x - 9, y + 3)], fill=(42, 61, 31, 90))
+    # Broken patches of grass bind neighbouring roots. Leave the outer
+    # corners transparent so two overlapping groves never form a flat seam.
+    for _, x, y, size in layers:
+        for _ in range(5):
+            draw_grass(canvas, rng, x + rng.uniform(-20, 20) * size,
+                       y + rng.uniform(-3, 2), rng.uniform(8, 16), rng.uniform(4, 8))
+    for name, x, y, size in layers:
+        put(canvas, load(name, size, rng.random() < .5), x, y)
+    # A single understory species repeats around two roots in each grove.
+    small = ["fern_frond", "clubmoss_small", "horsetail", "fern_frond"][index]
+    for _, x, y, _ in layers[-2:]:
+        for dx, dy in [(-13, -2), (9, 2), (17, 0)]:
+            put(canvas, load(small, rng.uniform(.42, .68), dx < 0), x + dx, y + dy)
+        draw_grass(canvas, rng, x + 4, y + 2, 16, 6)
     return canvas
 
 
@@ -179,10 +149,10 @@ def checkerboard(w: int, h: int, cell: int = 8) -> Image.Image:
 
 
 def contact_sheet(images: list[Image.Image], names: list[str],
-                  scale: int = 2, gap: int = 8, label: int = 14) -> Image.Image:
+                  scale: int = 2, gap: int = 8, label: int = 14,
+                  cols: int = 2) -> Image.Image:
     cell_w = max(im.width for im in images) * scale
     cell_h = max(im.height for im in images) * scale + label
-    cols = 2
     rows = (len(images) + cols - 1) // cols
     sheet = checkerboard(cols * cell_w + (cols + 1) * gap,
                          rows * cell_h + (rows + 1) * gap)
@@ -200,42 +170,10 @@ def contact_sheet(images: list[Image.Image], names: list[str],
     return sheet
 
 
-def field_preview(seed: int = 7, scale: int = 2) -> Image.Image:
-    """Representative 3x2 landmark like Config.groveField in dino_config.lua."""
-    rng = random.Random(seed)
-    spacing_x, spacing_y = 4.6 * 22, 4.5 * 22
-    base_w, base_h = round(154 * 1.25), round(158 * 1.25)
-    row_counts = [1, 2, 3]
-    w = round(2 * spacing_x + base_w + 64)
-    h = round((len(row_counts) - 1) * spacing_y + base_h + 96)
-    canvas = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-
-    # Back row first, front row last, matching dino_track.spawnGroveField().
-    # 1 / 2 / 3 groves per row: an inverted triangle with the point facing
-    # the player.
-    for row in range(len(row_counts) - 1, -1, -1):
-        count = row_counts[row]
-        for col in range(1, count + 1):
-            sc = rng.uniform(.95, 1.25)
-            sprite = load(rng.choice(NAMES), sc, rng.random() < .5)
-            x = (w / 2 + (col - (count + 1) / 2) * spacing_x
-                 + rng.uniform(-1, 1) * 1.2 * 22)
-            # Each grove gets its own vertical offset so the front edge is jagged.
-            stagger = rng.uniform(-0.7, 0.7) * 22
-            base_y = (h - 8 - row * spacing_y + stagger
-                      + rng.uniform(-.5, .5) * .6 * 22)
-            put(canvas, sprite, x, base_y)
-
-    big = canvas.resize((w * scale, h * scale), Image.NEAREST)
-    board = checkerboard(big.width, big.height).convert("RGBA")
-    board.alpha_composite(big)
-    return board
-
-
 def main() -> None:
     images = []
     for i, name in enumerate(NAMES):
-        grove = compose(seed=101 + i * 7919)
+        grove = compose(i)
         path = SRC / f"{name}.png"
         grove.save(path)
         ensure_meta(path)
@@ -246,11 +184,6 @@ def main() -> None:
     PREVIEW.parent.mkdir(parents=True, exist_ok=True)
     sheet.save(PREVIEW)
     print(f"wrote {PREVIEW.relative_to(ROOT)}")
-
-    FIELD_PREVIEW.parent.mkdir(parents=True, exist_ok=True)
-    field_preview().save(FIELD_PREVIEW)
-    print(f"wrote {FIELD_PREVIEW.relative_to(ROOT)}")
-
 
 if __name__ == "__main__":
     main()
