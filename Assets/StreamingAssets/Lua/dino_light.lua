@@ -30,6 +30,7 @@ end
 function L.blend(a, b, k)
     local e = ease(clamp01(k))
     return {
+        sun = (a.sun or 0) + ((b.sun or 0) - (a.sun or 0)) * e,
         tint = lerp3(a.tint, b.tint, e),
         lift = lerp3(a.lift, b.lift, e),
         bg   = lerp3(a.bg, b.bg, e),
@@ -39,7 +40,7 @@ end
 local function zoneState(name)
     local z = Config.light.timeZones[name]
     assert(z, "unknown time zone: " .. tostring(name))
-    return { tint = z.tint, lift = z.lift, bg = z.bg }
+    return { sun = z.sun, tint = z.tint, lift = z.lift, bg = z.bg }
 end
 
 -- 中性状态：白天参数（与改动前的画面一致）。
@@ -168,7 +169,10 @@ function L.tick(dt, sources)
             s.tint[1], s.tint[2], s.tint[3],
             s.lift[1], s.lift[2], s.lift[3],
             s.bg[1], s.bg[2], s.bg[3],
-            vignette)
+            vignette, Config.light.sunDir[1], Config.light.sunDir[2],
+            Config.light.enabled and s.sun or 0, Config.light.castLength,
+            L.time * Config.light.clouds.windX, L.time * Config.light.clouds.windY,
+            1 / Config.light.clouds.tileSize, Config.light.clouds.shafts)
     end
     if world and world.setLights then
         local lights = {}

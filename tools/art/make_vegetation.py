@@ -63,7 +63,7 @@ def main():
     make_ferns.main()
     make_grove.main()
 
-    names = ["tree"] + [entry[0] for entry in CANOPY + UNDERSTORY if entry is not None]
+    names = ["tree", "tree_2", "tree_3"] + [entry[0] for entry in CANOPY + UNDERSTORY if entry is not None]
     names += ["fern", "fern_frond"]
     images = []
     for name in names:

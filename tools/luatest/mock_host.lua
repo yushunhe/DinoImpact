@@ -106,10 +106,11 @@ function M.new()
             return math.sin(x * .13 + t * .8) * .4 + math.cos(z * .09 - t * .6) * .35
         end,
         setTimeOfDay = noop,
-        setTint = function(tr, tg, tb, lr, lg, lb, br, bg, bb, vig)
+        setTint = function(tr, tg, tb, lr, lg, lb, br, bg, bb, vig, dx, dy, sun, castLength, cloudX, cloudY, cloudScale, shafts)
             lightState = {
                 tint = { tr, tg, tb }, lift = { lr, lg, lb }, bg = { br, bg, bb },
-                vignette = vig,
+                vignette = vig, sun = sun, dx = dx, dy = dy, castLength = castLength,
+                cloudX = cloudX, cloudY = cloudY, cloudScale = cloudScale, shafts = shafts,
             }
         end,
         setLights = function(n, flat, haloAlpha, haloScale)

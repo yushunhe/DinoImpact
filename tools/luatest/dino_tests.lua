@@ -85,7 +85,16 @@ check(P.heading == 0, "starts centred")
 step(.05, { left = true }); check(P.heading == -1, "A once: 中->微左")
 step(.05, { left = true }); check(P.heading == -2, "A twice: 微左->左")
 step(.05, { left = true }); check(P.heading == -2, "clamped at 左")
-step(.05, { right = true }); check(P.heading == -1, "D steps back right")
+local beforeTurn = P.x
+step(.05, { right = true })
+check(P.heading == 1 and P.x > beforeTurn, "D immediately moves right from hard left")
+step(.05, { right = true })
+beforeTurn = P.x
+step(.05, { left = true })
+check(P.heading == -1 and P.x < beforeTurn, "A immediately moves left from hard right")
+beforeTurn = P.x
+step(.05, { left = true, right = true })
+check(P.heading == 0 and P.x == beforeTurn, "simultaneous left and right centre without a left bias")
 step(.05, { up = true });   check(P.heading == 0, "W snaps straight to 中")
 step(.05, { right = true }); step(.05, { right = true })
 check(P.heading == 2, "D twice: 中->微右->右")
@@ -276,7 +285,7 @@ step(.05, { left = true })
 check(P.heading == 1, "confused: A does D's job")
 P.confuseT = 0
 step(.05, { left = true })
-check(P.heading == 0, "back to normal: A steps left again")
+check(P.heading == -1, "after confusion ends A immediately moves left again")
 startFresh()
 Game.debugSpawnObstacle("spring", P.x, P.y); step(.05)
 check(P.airborneT > 0, "弹簧草 launches into the air")
@@ -718,6 +727,33 @@ check(eggsTotal > 20, "a real run harvests eggs naturally (eggs=" .. eggsTotal .
 
 io.write("vegetation communities and revisits\n")
 do
+    local standaloneTrees = false
+    for _, entry in ipairs(Data.obstacleWeights) do
+        standaloneTrees = standaloneTrees or entry[1] == "tree"
+    end
+    check(not standaloneTrees, "ordinary obstacle rows do not spawn standalone trees")
+    local world = Config.world
+    local originalChance, originalCompanion = world.largePatchChance, world.companionPatch
+    world.companionPatch = 0
+    for _, size in ipairs({ world.smallPatch, world.largePatch }) do
+        world.largePatchChance = size == world.largePatch and 1 or 0
+        W.reset({ x = 0, y = 0 })
+        local groups, mixed = 0, true
+        for _, cell in pairs(W.cells) do
+            if #cell.items > 0 then
+                groups = groups + 1
+                local species = {}
+                for _, item in ipairs(cell.items) do
+                    species[host._debug.entities()[item.id].kind] = true
+                end
+                local kinds = 0
+                for _ in pairs(species) do kinds = kinds + 1 end
+                mixed = mixed and #cell.items == size.count and kinds >= 3
+            end
+        end
+        check(groups > 0 and mixed, "every " .. size.count .. "-plant patch uses at least three species")
+    end
+    world.largePatchChance, world.companionPatch = originalChance, originalCompanion
     W.reset({ x = 0, y = 0 })
     local function patchSignature()
         local patches, plants = {}, {}
@@ -749,7 +785,7 @@ do
     local empty, clustered = 0, true
     for _, count in pairs(patches) do
         if count == 0 then empty = empty + 1
-        elseif count < 4 then clustered = false end
+        elseif count < world.smallPatch.count then clustered = false end
     end
     check(empty > 0 and clustered and original ~= "", "open meadow cells alternate with groups of plants")
     W.update(.05, { x = -220, y = 160 })
@@ -811,6 +847,9 @@ W.clear()
 local afterClear = 0
 for _ in pairs(host._debug.terrain()) do afterClear = afterClear + 1 end
 check(afterClear == 0, "clearing the world removes every terrain patch")
+W.update(.05, P)
+check(host.terrain.count() == patches and next(W.cells) ~= nil,
+    "updating at the same position after a clear restores terrain and vegetation")
 
 io.write("HUD text\n")
 startFresh()
@@ -833,13 +872,24 @@ end
 startFresh()
 step(.05)
 local dayNow = host._debug.light()
+check(dayNow.sun == Lc.timeZones.day.sun and dayNow.castLength == Lc.castLength
+    and dayNow.dx == Lc.sunDir[1] and dayNow.dy == Lc.sunDir[2], "sun and cast shadows share the day direction")
+
 check(dayNow and sameRGB(dayNow.tint, { 1, 1, 1 }) and sameRGB(dayNow.lift, { 0, 0, 0 }),
     "default day zone is neutral (pre-lighting visuals unchanged)")
 check(dayNow and sameRGB(dayNow.bg, Lc.timeZones.day.bg), "day background matches the configured day bg")
 
+step(.05)
+local clouds = host._debug.light()
+check(near(clouds.cloudX - dayNow.cloudX, .05 * Lc.clouds.windX)
+    and near(clouds.cloudY - dayNow.cloudY, .05 * Lc.clouds.windY)
+    and near(clouds.cloudScale, 1 / Lc.clouds.tileSize) and clouds.shafts == Lc.clouds.shafts,
+    "cloud shadows and sun shafts use the same wind-driven world offset")
+
 Game.debugSetTimeZone("night")
 step(.05)
 local mid = host._debug.light()
+check(mid.sun < dayNow.sun and mid.sun > Lc.timeZones.night.sun, "sun and tree shadows fade during dusk transitions")
 check(mid and not sameRGB(mid.tint, Lc.timeZones.night.tint) and not sameRGB(mid.tint, { 1, 1, 1 }),
     "night transition is in progress mid-blend")
 steps(60, .05)  -- 3 s, longer than Lc.transition
@@ -860,6 +910,7 @@ steps(60, .05)
 Lc.enabled = false
 step(.05)
 local off = host._debug.light()
+check(off.sun == 0, "lighting switch disables directional light and canopy shadows")
 check(sameRGB(off.tint, { 1, 1, 1 }) and sameRGB(off.lift, { 0, 0, 0 }),
     "light.enabled=false forces neutral tint regardless of zone")
 Game.debugSetTimeZone("dusk", true)

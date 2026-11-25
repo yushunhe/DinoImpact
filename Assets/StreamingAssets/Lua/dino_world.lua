@@ -14,13 +14,13 @@ local CULL = RADIUS + 1                      -- hysteresis: keep one extra ring
 local W = {
     cells = {},
 }
+local centerX, centerY
 
--- One dominant species, related understory and occasional accent per habitat.
--- Obstacle sprites stay in the track director so hazards remain recognizable.
+-- Each habitat mixes low plants with different silhouettes in every patch.
 local communities = {
-    meadow = { tall = { "cycad", "palm" }, low = { "fern", "fern_frond" }, edge = "clubmoss_small" },
-    fern = { tall = { "cycad", "fern" }, low = { "fern", "fern_frond" }, edge = "crown_small" },
-    swamp = { tall = { "horsetail", "horsetail_cone" }, low = { "horsetail", "horsetail_cone" }, edge = "fern_frond" },
+    meadow = { "fern_frond", "clubmoss_small", "crown_small", "flower" },
+    fern = { "fern", "fern_frond", "crown", "clubmoss_small" },
+    swamp = { "horsetail", "horsetail_cone", "fern_frond" },
 }
 
 -- Park-Miller LCG. Pure arithmetic so it behaves identically in Lua 5.2
@@ -37,7 +37,6 @@ local function makeRng(seed)
     function r.range(a, b) return a + (b - a) * r.float() end
     function r.int(a, b) return a + math.floor(r.float() * (b - a + 1)) end
     function r.chance(p) return r.float() < p end
-    function r.pick(list) return list[1 + math.floor(r.float() * #list)] end
     return r
 end
 
@@ -117,9 +116,7 @@ local function spawnTerrainCell(cx, cy)
     terrainCells[key] = { ids = ids, cx = cx, cy = cy }
 end
 
-local function fillTerrain(P)
-    local pcx = math.floor(P.x / TC)
-    local pcy = math.floor(P.y / TC)
+local function fillTerrain(pcx, pcy)
     for cy = pcy - TRAD, pcy + TRAD do
         for cx = pcx - TRAD, pcx + TRAD do
             spawnTerrainCell(cx, cy)
@@ -127,9 +124,7 @@ local function fillTerrain(P)
     end
 end
 
-local function cullTerrain(P)
-    local pcx = math.floor(P.x / TC)
-    local pcy = math.floor(P.y / TC)
+local function cullTerrain(pcx, pcy)
     for key, cell in pairs(terrainCells) do
         if math.abs(cell.cx - pcx) > TCULL or math.abs(cell.cy - pcy) > TCULL then
             for i = 1, #cell.ids do Host.terrain.kill(cell.ids[i]) end
@@ -161,20 +156,19 @@ local function spawnInCell(cx, cy)
         items[#items + 1] = { id = id, x = x, y = y }
     end
 
-    -- A larger plant anchors one end. Smaller offsets follow a loose, bent
-    -- axis, sharing species within the patch and thinning toward its tip.
-    local function plantPatch(x, y, angle, size)
+    local function plantPatch(x, y, angle, patch)
         local dx, dy = math.cos(angle), math.sin(angle)
-        local dominant = rng.pick(habitat.tall)
-        local understory = rng.pick(habitat.low)
-        add(dominant, x, y, size)
-        for i = 1, rng.int(2, 4) do
-            local along = i * rng.range(.67, .94) * size
-            local across = (rng.range(-.85, .85) + .07 * i * i) * size
-            add(understory, x + dx * along - dy * across, y + dy * along + dx * across,
-                size * rng.range(.65, .93))
+        local first = rng.int(1, #habitat)
+        local size = rng.range(.85, 1.15)
+        for i = 1, patch.count do
+            -- Stagger the bases so the leaves overlap without lining up in rows.
+            local t = (i - 1) / (patch.count - 1)
+            local along = (2 * t - 1 + rng.range(-.10, .10)) * patch.width * size
+            local across = ((i % 2 - .5) * .8 + rng.range(-.20, .20)) * patch.depth * size
+            local kind = habitat[(first + i - 2) % #habitat + 1]
+            add(kind, x + dx * along - dy * across, y + dy * along + dx * across,
+                patch.scale * size * rng.range(.82, 1.16))
         end
-        add(habitat.edge, x - dx * size, y - dy * size, size * rng.range(.62, .86))
     end
 
     if terrain or rng.chance(Config.world.meadowCover) then
@@ -189,18 +183,18 @@ local function spawnInCell(cx, cy)
         end
         -- Fern beds and horsetails follow opposite banks of their own ground
         -- patch. On open grass the same spacing leaves a meadow between groups.
-        plantPatch(cxWorld + dx * reachX, cyWorld + dy * reachY, angle + 1.5, rng.range(.94, 1.22))
+        local world = Config.world
+        local primary = rng.chance(world.largePatchChance) and world.largePatch or world.smallPatch
+        plantPatch(cxWorld + dx * reachX, cyWorld + dy * reachY, angle + 1.5, primary)
         if rng.chance(Config.world.companionPatch) then
-            plantPatch(cxWorld - dx * reachX, cyWorld - dy * reachY, angle - 1.1, rng.range(.62, .84))
+            plantPatch(cxWorld - dx * reachX, cyWorld - dy * reachY, angle - 1.1, world.smallPatch)
         end
     end
 
     W.cells[key] = { items = items, cx = cx, cy = cy }
 end
 
-local function fillAround(P)
-    local pcx = math.floor(P.x / CELL)
-    local pcy = math.floor(P.y / CELL)
+local function fillAround(pcx, pcy)
     for cy = pcy - RADIUS, pcy + RADIUS do
         for cx = pcx - RADIUS, pcx + RADIUS do
             spawnInCell(cx, cy)
@@ -208,9 +202,7 @@ local function fillAround(P)
     end
 end
 
-local function cullAround(P)
-    local pcx = math.floor(P.x / CELL)
-    local pcy = math.floor(P.y / CELL)
+local function cullAround(pcx, pcy)
     for key, cell in pairs(W.cells) do
         if math.abs(cell.cx - pcx) > CULL or math.abs(cell.cy - pcy) > CULL then
             for i = 1, #cell.items do
@@ -229,19 +221,23 @@ function W.clear()
     end
     W.cells = {}
     clearTerrain()
+    centerX, centerY = nil, nil
 end
 
 function W.reset(P)
     W.clear()
-    fillAround(P)
-    fillTerrain(P)
+    W.update(0, P)
 end
 
 function W.update(dt, P)
-    fillAround(P)
-    cullAround(P)
-    fillTerrain(P)
-    cullTerrain(P)
+    -- Vegetation and terrain share the same grid, and neither changes within a cell.
+    local cx, cy = math.floor(P.x / CELL), math.floor(P.y / CELL)
+    if cx == centerX and cy == centerY then return end
+    fillAround(cx, cy)
+    cullAround(cx, cy)
+    fillTerrain(cx, cy)
+    cullTerrain(cx, cy)
+    centerX, centerY = cx, cy
 end
 
 -- Debug hooks for the headless tests (pure plan, no host side effects).

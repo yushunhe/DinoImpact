@@ -112,7 +112,7 @@ C.light = {
     maxLights = 8,
     pickRange = 30,       -- 只取离玩家这个距离内的蛋/果实（玩家光永远在）
     sources = {
-        player = { radius = 6,   color = { 1, .86, .60 },  intensity = .9, flicker = .04 },
+        player = { radius = 6,   color = { 1, .86, .60 },  intensity = .52, flicker = .04 },
         egg    = { radius = 3.5, color = { 1, .95, .75 },  intensity = .8, flicker = .08 },
         fruit  = { radius = 3,   color = { .70, 1, .60 },  intensity = .7, flicker = .10 },
     },
@@ -121,13 +121,15 @@ C.light = {
     -- 暗角（第 3 步）：屏幕边缘压暗的强度，0 关闭。
     vignette = .25,
     -- 接触阴影（第 3 步）：玩家脚下阴影随太阳方向偏移。sunDir 指向光来的方向的反方向。
-    sunDir = { -.4, -.6 },   -- 阴影投向的方向（会自动归一化）
+    sunDir = { -.84, -.54 },   -- 阴影投向的方向（会自动归一化）
+    clouds = { windX = .80, windY = .28, tileSize = 86, shafts = .085 },
+    castLength = .94,       -- projected length per unit of canopy height
     shadowOffset = .35,      -- 偏移量（世界单位）
     timeZones = {
-        dawn  = { tint = { 1.00, .86, .72 }, lift = { .10, .08, .14 }, bg = { .16, .14, .18 } },
-        day   = { tint = { 1, 1, 1 },        lift = { 0, 0, 0 },       bg = { .09, .15, .08 } },
-        dusk  = { tint = { 1.00, .74, .58 }, lift = { .14, .06, .10 }, bg = { .20, .10, .12 } },
-        night = { tint = { .52, .60, .86 },  lift = { .08, .10, .18 }, bg = { .04, .05, .10 } },
+        dawn  = { sun = .82, tint = { 1.00, .86, .72 }, lift = { .10, .08, .14 }, bg = { .16, .14, .18 } },
+        day   = { sun = 1, tint = { 1, 1, 1 },        lift = { 0, 0, 0 },       bg = { .09, .15, .08 } },
+        dusk  = { sun = .72, tint = { 1.00, .74, .58 }, lift = { .14, .06, .10 }, bg = { .20, .10, .12 } },
+        night = { sun = .05, tint = { .52, .60, .86 },  lift = { .08, .10, .18 }, bg = { .04, .05, .10 } },
     },
 }
 
@@ -135,6 +137,9 @@ C.world = {
     decorRadius = 2,       -- 植物群落与地貌共用 18 单位的格子
     meadowCover = .82,     -- 有植株簇的草地格比例，其余整格留白
     companionPatch = .72,  -- 地块另一侧再长一小簇
+    largePatchChance = .52,
+    smallPatch = { count = 3, width = .38, depth = .26, scale = .57 },
+    largePatch = { count = 6, width = .90, depth = .55, scale = .86 },
     cullX = 44,        -- sideways existence cull (relative to the player)
     cullBack = 20,     -- behind the player
     cullFore = 55,     -- unused (spawn-ahead limit), kept for clarity

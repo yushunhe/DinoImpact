@@ -29,6 +29,7 @@ Shader "Surf/Sprite"
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag
+            #pragma multi_compile_local __ DINO_UPRIGHT DINO_CAST_SHADOW
             #include "UnityCG.cginc"
 
             struct appdata
@@ -56,6 +57,7 @@ Shader "Surf/Sprite"
             float4 _DinoLightPR[8];     // xy = world pos, z = radius
             float4 _DinoLightCI[8];     // rgb = colour, a = intensity
             float _DinoLightCount;
+            #include "DinoClouds.cginc"
 
             v2f vert (appdata v)
             {
@@ -67,10 +69,43 @@ Shader "Surf/Sprite"
                 return o;
             }
 
+            // Coordinates run from the roots (y=0) to the farthest projected crown (y=1).
+            float shadowLobe(float2 uv, float2 center, float2 radii, float softness)
+            {
+                float d = length((uv - center) / radii);
+                return 1.0 - smoothstep(1.0 - softness, 1.0 + softness, d);
+            }
+
             fixed4 frag (v2f i) : SV_Target
             {
+                float opening = cloudOpening(cloudUV(i.wp));
+                #if defined(DINO_CAST_SHADOW)
+                    float2 uv = i.uv;
+                    float softness = lerp(.16, .56, smoothstep(.12, .92, uv.y));
+                    float crown = max(shadowLobe(uv, float2(.43,.67), float2(.28,.19), softness),
+                                      shadowLobe(uv, float2(.64,.63), float2(.19,.15), softness));
+                    float distanceFromTrunk = abs(uv.x - .50 + .035 * uv.y);
+                    float trunk = (1.0 - smoothstep(.016, .026 + .105 * uv.y, distanceFromTrunk))
+                                * smoothstep(0.0,.035,uv.y) * (1.0 - smoothstep(.44,.68,uv.y));
+                    float contact = shadowLobe(uv, float2(.50,.095), float2(.14,.075), .36);
+                    float opacity = max(.60 * contact, max(.46 * trunk, .44 * crown)) * _DinoSun.z * lerp(.38, 1.0, opening);
+                    return fixed4(float3(.008,.016,.025) * opacity, opacity);
+                #endif
                 fixed4 c = tex2D(_MainTex, i.uv) * _Color * i.color;
-
+                float3 albedo = c.rgb;
+                // Passing clouds shade the scenery, pickups and rider together.
+                float3 daylight = lerp(float3(.50,.66,.85), float3(2.16,1.66,1.05), opening);
+                c.rgb *= lerp(1.0, daylight, _DinoSun.z);
+                #if defined(DINO_UPRIGHT)
+                    // Derivatives keep the lit edge on the sunward side of mirrored sprites.
+                    float2 offset = ddx(i.uv) * _DinoSun.x + ddy(i.uv) * _DinoSun.y * sign(ddy(i.wp.y));
+                    float edge = saturate(c.a - tex2D(_MainTex, i.uv + offset * 1.8).a);
+                    float side = (i.uv.x - .5) * sign(ddx(i.uv.x)) * _DinoSun.x;
+                    float sunlit = saturate(.26 + .76 * side + .44 * i.uv.y);
+                    float3 model = lerp(float3(.68,.77,.88), float3(1.46,1.22,.91), sunlit);
+                    c.rgb = c.rgb * lerp(1.0, model, _DinoSun.z)
+                          + float3(.12,.085,.028) * edge * _DinoSun.z * opening;
+                #endif
                 // Additive light scaled by albedo, so lights brighten the art
                 // rather than washing it out. Quadratic falloff to zero at radius.
                 float3 add = 0;
@@ -83,7 +118,7 @@ Shader "Surf/Sprite"
                     add += _DinoLightCI[k].rgb * _DinoLightCI[k].a * (f * f);
                 }
 
-                c.rgb = saturate(c.rgb * _DinoTint.rgb + _DinoLift.rgb + c.rgb * add) * c.a;
+                c.rgb = saturate(c.rgb * _DinoTint.rgb + _DinoLift.rgb + albedo * add) * c.a;
                 return c;
             }
             ENDCG

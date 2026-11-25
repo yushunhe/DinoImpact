@@ -18,19 +18,33 @@ namespace DinoImpact
             public string kind;
             public GameObject go;
             public SpriteRenderer sprite;
+            public MeshRenderer shadow;
         }
 
         class TerrainData
         {
-            public int id;
-            public string kind;
             public GameObject go;
+            public Mesh mesh;
+            public Material material;
+
+            public void Destroy()
+            {
+                UnityEngine.Object.Destroy(go);
+                UnityEngine.Object.Destroy(mesh);
+                UnityEngine.Object.Destroy(material);
+            }
         }
 
         readonly DinoBootstrap _bootstrap;
         readonly Dictionary<int, EntityData> _entities = new Dictionary<int, EntityData>();
         readonly Dictionary<int, TerrainData> _terrain = new Dictionary<int, TerrainData>();
         readonly SurfInput _input = new SurfInput();
+
+        readonly Dictionary<Sprite, Mesh> _shadowMeshes = new Dictionary<Sprite, Mesh>();
+        readonly MaterialPropertyBlock _shadowProperties = new MaterialPropertyBlock();
+        Material _shadowMaterial;
+        Material _uprightMaterial;
+        Vector2 _castVector;
 
         Script _script;
         int _nextId = 1;
@@ -87,7 +101,14 @@ namespace DinoImpact
 
             // One endless grass plane. It follows the camera and scrolls its UVs,
             // so the ground is infinite in every direction (no path edges).
-            DinoLighting.Init();   // before any sprite: tint globals must be set first
+            DinoLighting.Init();
+            _uprightMaterial = DinoLighting.NewSpriteMaterial("Sunlit sprites");
+            _uprightMaterial.EnableKeyword("DINO_UPRIGHT");
+            _shadowMaterial = DinoLighting.NewSpriteMaterial("Canopy shade");
+            _shadowMaterial.EnableKeyword("DINO_CAST_SHADOW");
+            // Start neutral until the first Lua lighting tick.
+            Shader.SetGlobalTexture("_DinoCloudDensity", Resources.Load<Texture2D>("Dino/CloudDensity"));
+            Shader.SetGlobalVector("_DinoSun", Vector4.zero);
             Sprite grass = DinoPixelArt.Get("ground_grass");
             const float groundSize = 120f;
             _groundUvPerUnit = new Vector2(grass.pixelsPerUnit / grass.texture.width,
@@ -278,6 +299,7 @@ namespace DinoImpact
                 if (e?.sprite == null) return DynValue.Nil;
                 e.sprite.flipX = BoolArg(a, 1, false);
                 e.sprite.flipY = BoolArg(a, 2, false);
+                if (e.shadow != null) AlignShadow(e);
                 return DynValue.Nil;
             }));
             entity.Set("setVisible", Fn((s, a) =>
@@ -329,6 +351,17 @@ namespace DinoImpact
             // shader globals, bg to the camera (docs/lighting-plan.md 第 1 步).
             world.Set("setTint", Fn((s, a) =>
             {
+                Vector2 cast = new Vector2(FArg(a, 10), FArg(a, 11)).normalized;
+                float sunlight = cast == Vector2.zero ? 0f : FArg(a, 12);
+                Shader.SetGlobalVector("_DinoSun", new Vector4(-cast.x, -cast.y, sunlight, 0f));
+                Shader.SetGlobalVector("_DinoCloud", new Vector4(FArg(a, 14), FArg(a, 15), FArg(a, 16), FArg(a, 17)));
+                Vector2 projection = cast * FArg(a, 13);
+                if (projection != _castVector)
+                {
+                    _castVector = projection;
+                    foreach (var entry in _shadowMeshes)
+                        ProjectCanopy(entry.Key, entry.Value);
+                }
                 DinoLighting.Apply(
                     new Color(FArg(a, 0, 1f), FArg(a, 1, 1f), FArg(a, 2, 1f)),
                     new Color(FArg(a, 3, 0f), FArg(a, 4, 0f), FArg(a, 5, 0f)),
@@ -536,9 +569,67 @@ namespace DinoImpact
             go.transform.position = new Vector3(x, y, z);
 
             var data = new EntityData { id = id, kind = kind, go = go, sprite = sr };
+            if (kind == "tree" || kind == "palm" || kind == "grove" || kind.StartsWith("grove_"))
+            {
+                sr.sharedMaterial = _uprightMaterial;
+                var shade = new GameObject("Cast shadow");
+                shade.transform.SetParent(go.transform, false);
+                var filter = shade.AddComponent<MeshFilter>();
+                if (!_shadowMeshes.TryGetValue(sr.sprite, out Mesh mesh))
+                {
+                    mesh = new Mesh { name = "Shadow " + kind };
+                    ProjectCanopy(sr.sprite, mesh);
+                    mesh.uv = new[] { Vector2.zero, Vector2.right, Vector2.one, Vector2.up };
+                    mesh.triangles = new[] { 0, 2, 1, 0, 3, 2 };
+                    _shadowMeshes.Add(sr.sprite, mesh);
+                }
+                filter.sharedMesh = mesh;
+                data.shadow = shade.AddComponent<MeshRenderer>();
+                data.shadow.sharedMaterial = _shadowMaterial;
+                data.shadow.sortingOrder = -19900;
+                data.shadow.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                data.shadow.receiveShadows = false;
+                AlignShadow(data);
+            }
+            else if (kind.StartsWith("dino_") || kind.StartsWith("mount_") || kind.StartsWith("enemy_")
+                     || kind.StartsWith("rider") || kind == "rock" || kind == "rock_small" || kind == "log")
+                sr.sharedMaterial = _uprightMaterial;
             Sort(data);
             _entities[id] = data;
             return id;
+        }
+
+        void ProjectCanopy(Sprite sprite, Mesh mesh)
+        {
+            // Bottom edge stays at the roots. Only the top edge moves along the ground.
+            Bounds bounds = sprite.bounds;
+            Vector3 left = new Vector3(bounds.min.x, 0f, 0f);
+            Vector3 right = new Vector3(bounds.max.x, 0f, 0f);
+            Vector3 tip = _castVector * bounds.size.y;
+            mesh.vertices = new[] { left, right, right + tip, left + tip };
+            mesh.RecalculateBounds();
+        }
+
+        void AlignShadow(EntityData e)
+        {
+            // Root of the dominant tree within each composed grove (normalized sprite coordinates).
+            Vector2 root;
+            float size = 1f;
+            switch (e.kind)
+            {
+                case "grove":   root = new Vector2(.40f, .09f); break;
+                case "grove_2": root = new Vector2(.64f, .08f); break;
+                case "grove_3": root = new Vector2(.61f, .24f); size = .62f; break;
+                case "grove_4": root = new Vector2(.60f, .18f); size = .80f; break;
+                default:        root = new Vector2(.5f, 0f); break;
+            }
+            Vector3 bounds = e.sprite.sprite.bounds.size;
+            float sx = e.sprite.flipX ? -1f : 1f;
+            float sy = e.sprite.flipY ? -1f : 1f;
+            e.shadow.transform.localPosition = new Vector3((root.x - .5f) * bounds.x * sx, root.y * bounds.y * sy, 0f);
+            e.shadow.transform.localScale = new Vector3(size, size, 1f);
+            _shadowProperties.SetVector("_MainTex_ST", new Vector4(sx, sy, sx < 0 ? 1 : 0, sy < 0 ? 1 : 0));
+            e.shadow.SetPropertyBlock(_shadowProperties);
         }
 
         void Sort(EntityData e)
@@ -589,21 +680,26 @@ namespace DinoImpact
             r.transform.position = new Vector3(x, y, z);
             r.sortingOrder = -20000;   // under every sprite, over the base ground
 
-            _terrain[id] = new TerrainData { id = id, kind = kind, go = r.gameObject };
+            _terrain[id] = new TerrainData
+            {
+                go = r.gameObject,
+                mesh = r.GetComponent<MeshFilter>().sharedMesh,
+                material = mat,
+            };
             return id;
         }
 
         void KillTerrain(int id)
         {
             if (!_terrain.TryGetValue(id, out TerrainData d)) return;
-            if (d.go != null) UnityEngine.Object.Destroy(d.go);
+            d.Destroy();
             _terrain.Remove(id);
         }
 
         void ClearTerrain()
         {
             foreach (var d in _terrain.Values)
-                if (d.go != null) UnityEngine.Object.Destroy(d.go);
+                d.Destroy();
             _terrain.Clear();
         }
 
@@ -668,6 +764,10 @@ namespace DinoImpact
         {
             ClearEntities();
             ClearTerrain();
+            foreach (Mesh mesh in _shadowMeshes.Values) UnityEngine.Object.Destroy(mesh);
+            _shadowMeshes.Clear();
+            UnityEngine.Object.Destroy(_shadowMaterial);
+            UnityEngine.Object.Destroy(_uprightMaterial);
         }
     }
 }

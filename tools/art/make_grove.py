@@ -47,11 +47,11 @@ GRASS_LIGHT = (111, 176, 82, 255)
 GROVES = [
     [("palm", 103, 120, .79), ("tree", 61, 144, .96),
      ("cycad", 92, 142, .88), ("fern", 44, 150, .84), ("fern", 75, 151, .61)],
-    [("tree", 47, 119, .73), ("tree", 99, 145, .90),
+    [("tree_2", 47, 119, .73), ("tree_3", 99, 145, .90),
      ("fern", 38, 137, .74), ("cycad", 64, 145, .88), ("fern", 99, 151, .62)],
     [("palm", 94, 120, 1.12), ("palm", 58, 134, .80),
      ("cycad", 84, 145, 1.10), ("fern", 45, 143, .86), ("fern", 103, 149, .75)],
-    [("tree", 93, 130, .78), ("cycad", 68, 140, 1.04),
+    [("tree_2", 93, 130, .78), ("cycad", 68, 140, 1.04),
      ("cycad", 35, 139, .71), ("fern", 95, 148, .88), ("fern", 54, 151, .64)],
 ]
 
@@ -138,6 +138,33 @@ def ensure_meta(image_path: Path) -> None:
     meta_path.write_text(template, encoding="utf-8")
 
 
+def export_tree_variants() -> None:
+    """Build the two painted crown silhouettes in the original tree palette."""
+    from make_ferns import extract
+
+    base = load("tree")
+    palette = base.convert("RGB").quantize(colors=24)
+    for name, source in [("tree_2", "tree-long-redraw.png"), ("tree_3", "tree-short-redraw.png")]:
+        with Image.open(Path(__file__).with_name(source)) as img:
+            crop = img.getchannel("A").point(lambda a: 255 if a >= 148 else 0).getbbox()
+            width = round(143 * (crop[2] - crop[0]) / (crop[3] - crop[1]))
+            painted = extract(img, crop, (width, 143), palette, brightness=1.0)
+        # Use only a small group of outer fronds from each painting. The inner
+        # fan, trunk and the other side of the canopy belong to the base sprite.
+        variant = base.copy()
+        aligned = Image.new("RGBA", base.size)
+        aligned.alpha_composite(painted, ((base.width - width) // 2, 0))
+        mask = Image.new("L", base.size)
+        outline = [(0, 46), (19, 39), (34, 49), (37, 100), (0, 100)]
+        if name == "tree_3":
+            outline = [(base.width - 1 - x, y) for x, y in outline]
+        ImageDraw.Draw(mask).polygon(outline, fill=255)
+        variant.paste(aligned, (0, 0), mask)
+        path = SRC / f"{name}.png"
+        variant.save(path)
+        ensure_meta(path)
+
+
 def checkerboard(w: int, h: int, cell: int = 8) -> Image.Image:
     board = Image.new("RGB", (w, h), (204, 204, 204))
     d = ImageDraw.Draw(board)
@@ -171,6 +198,7 @@ def contact_sheet(images: list[Image.Image], names: list[str],
 
 
 def main() -> None:
+    export_tree_variants()
     images = []
     for i, name in enumerate(NAMES):
         grove = compose(i)

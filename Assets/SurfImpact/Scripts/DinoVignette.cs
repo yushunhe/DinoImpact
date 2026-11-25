@@ -4,7 +4,7 @@ namespace DinoImpact
 {
     // Edge darkening on the main camera (docs/lighting-plan.md 第 3 步).
     // Strength comes from DinoLighting.Vignette, which Lua sets each frame.
-    // With strength 0 the image is copied untouched.
+    // The same full-screen pass scatters daylight through moving cloud gaps.
     [RequireComponent(typeof(Camera))]
     public class DinoVignette : MonoBehaviour
     {
@@ -14,18 +14,24 @@ namespace DinoImpact
         // player (the first build logged "Surf/Vignette missing").
         const string ResourcePath = "Dino/DinoVignette";
 
+        Camera _camera;
         Material _mat;
         bool _ownsMat;
         bool _missing;
 
+        void Awake() => _camera = GetComponent<Camera>();
+
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
             float strength = DinoLighting.Vignette;
-            if (strength <= 0f || _missing || !EnsureMaterial())
+            if (_missing || !EnsureMaterial())
             {
                 Graphics.Blit(src, dst);
                 return;
             }
+            Vector3 center = _camera.transform.position;
+            float halfHeight = _camera.orthographicSize;
+            _mat.SetVector("_CloudView", new Vector4(center.x, center.y, halfHeight * _camera.aspect, halfHeight));
             _mat.SetFloat("_Strength", strength);
             Graphics.Blit(src, dst, _mat);
         }

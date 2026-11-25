@@ -6,13 +6,6 @@ from PIL import Image, ImageDraw, ImageEnhance
 
 ART = Path(__file__).resolve().parent
 OUTPUT = ART.parents[1] / "Assets/Resources/Dino"
-# Each crop has room for its full alpha silhouette.
-SPRITES = {
-    "fern": ((70, 64, 730, 510), (62, 48)),
-    "fern_frond": ((810, 55, 1210, 502), (28, 36)),
-    "rosette": ((93, 645, 629, 1073), (80, 64)),
-    "fronds": ((720, 612, 1323, 1058), (82, 60)),
-}
 PALETTE = ("23432a", "33582e", "457137", "5b8540", "72964a", "88a452",
            "a4b863", "6e7744")
 # Plant name, center x and y, width in pixels, angle in degrees.
@@ -55,7 +48,10 @@ def fern_bed(sprites, layout):
     for species, x, y, width, angle in layout:
         spr = sprites[species]
         spr = spr.resize((width, round(spr.height * width / spr.width)), Image.Resampling.NEAREST)
-        spr = spr.rotate(angle, resample=Image.Resampling.NEAREST, expand=True)
+        if angle < 0:
+            spr = spr.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        # Small variations in lean keep all the crowns rooted in the same ground plane.
+        spr = spr.rotate(angle * .16, resample=Image.Resampling.NEAREST, expand=True)
         bed.alpha_composite(spr, (x - spr.width // 2, y - spr.height // 2))
     return bed
 
@@ -69,11 +65,20 @@ def make_palette(colors):
 
 def main():
     palette = make_palette(PALETTE)
-    with Image.open(ART / "fern-atlas.png") as source:
-        atlas = source.convert("RGBA")
-        sprites = {name: extract(atlas, box, size, palette) for name, (box, size) in SPRITES.items()}
-    for name in ("fern", "fern_frond"):
-        sprites[name].save(OUTPUT / f"{name}.png")
+    with Image.open(ART / "low-fern-redraw.png") as source:
+        source = source.convert("RGBA")
+        crop = source.getchannel("A").point(lambda a: 255 if a >= 148 else 0).getbbox()
+        width, height = crop[2] - crop[0], crop[3] - crop[1]
+        fern = extract(source, crop, (80, round(80 * height / width)), palette, brightness=1.10)
+    # Keep each sprite's original registration height for the ground-level pivot.
+    for name, width, height in [("fern", 62, 48), ("fern_frond", 36, 36)]:
+        plant = fern.resize((width, round(width * fern.height / fern.width)), Image.Resampling.NEAREST)
+        if name == "fern_frond":
+            plant = plant.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        framed = Image.new("RGBA", (width, height))
+        framed.alpha_composite(plant, (0, height - plant.height))
+        framed.save(OUTPUT / f"{name}.png")
+    sprites = {"rosette": fern, "fronds": fern.transpose(Image.Transpose.FLIP_LEFT_RIGHT)}
     for index, layout in enumerate(BEDS):
         fern_bed(sprites, layout).save(OUTPUT / f"terrain_fern_{index}.png")
 

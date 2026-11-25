@@ -1,7 +1,7 @@
 -- Player: the design-doc runner (1.2.1/1.2.2/1.2.3/1.2.5 effects).
 --
 -- Movement is discrete: five heading states (左/微左/中/微右/右). The dinosaur
--- always cruises forward automatically; A/D step the heading one state, W
+-- always cruises forward automatically; A/D pick a side, a second press turns harder, and W
 -- snaps back to 中. A hit costs a heart, stops the run and puts the player in
 -- a short invulnerable stun that any A/W/D press resumes (the press also
 -- steers, per 1.2.2).
@@ -160,10 +160,6 @@ local function setSprite(name)
     if P.id then Host.entity.setSprite(P.id, name) end
 end
 
-local function turn(dir)
-    P.heading = U.clamp(P.heading + dir, H.min, H.max)
-end
-
 function P.clear()
     for _, k in ipairs({ "id", "shadowId", "riderId" }) do
         if P[k] then Host.entity.kill(P[k]); P[k] = nil end
@@ -208,20 +204,24 @@ function P.setMountSprites(set)
     setSprite(set.idle)
 end
 
--- A pressed: one step left. D pressed: one step right. W: snap to 中.
--- While stunned the first A/W/D press also resumes movement (1.2.2).
+-- Opposite horizontal presses in the same frame cancel. W always centres.
 local function steerEdge()
-    local l, r = I.left(), I.right()
-    if P.confuseT > 0 then l, r = r, l end   -- 蘑菇丛：按键效果对调
-    if l then P:inputTurn(-1); return true end
-    if r then P:inputTurn(1); return true end
-    if I.up() then P:inputCenter(); return true end
-    return false
+    local left, right = I.left(), I.right()
+    if I.up() or (left and right) then
+        P:inputCenter()
+    elseif left or right then
+        local dir = left and -1 or 1
+        P:inputTurn(P.confuseT > 0 and -dir or dir)
+    end
 end
 
 function P:inputTurn(dir)
     if P.stunned then P:resume() end
-    turn(dir)
+    if P.heading * dir < 0 then
+        P.heading = dir
+    else
+        P.heading = U.clamp(P.heading + dir, H.min, H.max)
+    end
 end
 
 function P:inputCenter()

@@ -27,8 +27,8 @@ D.obstacles = {
 
 -- weighted pick for ordinary obstacle rows (1.2.5)
 D.obstacleWeights = {
-    { "rock_small", 20 }, { "rock", 12 }, { "log_h", 10 }, { "log_v", 7 },
-    { "tree", 12 }, { "grass_tuft", 12 }, { "footprint", 8 }, { "mud", 8 },
+    { "rock_small", 20 }, { "rock", 12 }, { "log_h", 10 }, { "log_v", 19 },
+    { "grass_tuft", 12 }, { "footprint", 8 }, { "mud", 8 },
     { "bush", 12 }, { "mushroom", 7 }, { "spring", 6 },
 }
 
